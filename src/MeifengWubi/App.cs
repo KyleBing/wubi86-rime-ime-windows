@@ -27,6 +27,7 @@ internal sealed class App : Application
     private PipeServer? _pipe;
     private TrayIcon? _tray;
     private GlobalHotKey? _hotKey;
+    private RankHotKey? _rankHotKey;
 
     [STAThread]
     public static int Main(string[] args)
@@ -100,6 +101,9 @@ internal sealed class App : Application
         }
 
         _hotKey = new GlobalHotKey(QuickAddWindow.Present);
+        // 候选条显示时才占住 Ctrl+Alt+0，按下后在界面线程直接打开排序窗
+        _rankHotKey = new RankHotKey(() => _controller.OpenRankFromHotKey());
+        _ui.CandidatePopupChanged += visible => _rankHotKey.SetArmed(visible);
 
         // 后台预热引擎：首次安装要整本编译码表，可能要几秒
         Task.Run(() =>
@@ -165,6 +169,7 @@ internal sealed class App : Application
         try
         {
             _hotKey?.Dispose();
+            _rankHotKey?.Dispose();
             _pipe?.Dispose();
             _tray?.Dispose();
             _ui?.Dispose();

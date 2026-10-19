@@ -1,4 +1,4 @@
-# 一键构建：librime → 服务进程（WPF）→ TSF 文本服务（x64 + x86）→ 安装包
+﻿# 一键构建：librime → 服务进程（WPF）→ TSF 文本服务（x64 + x86）→ 安装包
 # 用法：pwsh ./build.ps1 [-Configuration Release] [-SkipInstaller] [-Register]
 #   -Register  构建后直接在本机注册文本服务（需管理员），便于调试
 param(
@@ -46,12 +46,19 @@ if ($Register) {
 if (-not $SkipInstaller) {
     $iscc = Get-Command iscc -ErrorAction SilentlyContinue
     if (-not $iscc) {
-        $candidate = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-        if (Test-Path $candidate) { $iscc = Get-Item $candidate }
+        foreach ($candidate in @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+        )) {
+            if (Test-Path $candidate) { $iscc = Get-Item $candidate; break }
+        }
     }
     if ($iscc) {
+        # Windows PowerShell 5 的 Get-Command 没有 FullName，可执行文件路径在 Source
+        $isccPath = if ($iscc.Source) { $iscc.Source } else { $iscc.FullName }
         $version = ([xml](Get-Content (Join-Path $root "src/MeifengWubi/MeifengWubi.csproj"))).Project.PropertyGroup.Version | Select-Object -First 1
-        & $iscc.FullName "/DAppVersion=$version" "/DSourceDir=$out" (Join-Path $root "installer/MeifengWubi.iss")
+        & $isccPath "/DAppVersion=$version" "/DSourceDir=$out" (Join-Path $root "installer/MeifengWubi.iss")
         if ($LASTEXITCODE -ne 0) { throw "安装包编译失败" }
     } else {
         Write-Warning "未找到 Inno Setup（ISCC.exe），跳过安装包。程序文件在 $out"

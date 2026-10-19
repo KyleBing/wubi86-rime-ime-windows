@@ -23,7 +23,7 @@ internal static class KeyboardPage
         var caretNote = UiKit.Label(caretText, 11, secondary: true, wrap: true);
         caretNote.MaxWidth = 360;
 
-        var note = UiKit.Label("翻页与选词写入 Rime 配置，下次按键时生效。造词快捷键立即作用于输入法。候选出现时，用与造词相同的修饰键加数字（默认 Ctrl+Alt+1）可删除对应候选，加 0（默认 Ctrl+Alt+0）可拖动排序。排序只改被拖动词条的权重，幅度为 5 或 10。", 11, secondary: true, wrap: true);
+        var note = UiKit.Label("翻页与选词写入 Rime 配置，下次按键时生效。造词快捷键立即作用于输入法。候选出现时，用与造词相同的修饰键加数字（默认 Ctrl+Alt+1）可删除对应候选，加 0（默认 Ctrl+Alt+0）可拖动排序。这段时间输入法会接管这组键，避免被当前软件占用。排序只改被拖动词条的权重，幅度为 5 或 10。", 11, secondary: true, wrap: true);
         note.MaxWidth = 460;
         note.HorizontalAlignment = HorizontalAlignment.Left;
 

@@ -169,67 +169,46 @@ public sealed record CandidateSkin
         RGBAColor.Gray(0.7359364297945206),
         RGBAColor.Gray(0.7462810359589042));
 
-    public static CandidateSkin Default => new()
-    {
-        Name = "玫枫默认",
-        Author = "玫枫五笔",
-        FontName = "",
-        PaddingTop = 5,
-        PaddingBottom = 5,
-        PaddingLeft = 10,
-        PaddingRight = 10,
-        OffsetTop = 6,
-        OffsetLeft = 0,
-        CornerRadius = 9,
-        VerticalAlignment = SkinVerticalAlignment.Center,
-        ItemSpacing = 6,
-        IndexSpacing = 3,
-        CandidateFontSize = 14,
-        CandidateWeight = SkinFontWeight.Regular,
-        IndexFontSize = 11,
-        IndexWeight = SkinFontWeight.Regular,
-        CodeFontSize = 11,
-        BorderWidth = 0.5,
-        ShadowEnabled = true,
-        ShadowRadius = 10,
-        ShadowOffsetX = 0,
-        ShadowOffsetY = -2,
-        HighlightEnabled = true,
-        HighlightCornerRadius = 5,
-        HighlightPaddingTop = 2,
-        HighlightPaddingBottom = 2,
-        HighlightPaddingLeft = 5,
-        HighlightPaddingRight = 5,
-        HighlightWeight = SkinFontWeight.Medium,
-        Light = DefaultLight,
-        Dark = DefaultDark
-    };
+    // 未保存皮肤时用内置简约黑白，恢复默认和设置页的当前主题描边也按这一套
+    public static CandidateSkin Default => MonochromePreset;
 
     // 内置主题：只读，应用时保留用户当前字体
     public static IReadOnlyList<CandidateSkin> Presets => [CoralPreset, MonochromePreset];
 
-    // 珊瑚红与简约黑白共用的尺寸
-    private static CandidateSkin CompactBase => Default with
+    // 珊瑚红与简约黑白共用的尺寸。单独构造，避免 Default 再指回简约黑白时循环引用
+    private static CandidateSkin CompactBase => new()
     {
+        Author = "玫枫五笔",
+        FontName = "",
         PaddingTop = 4,
         PaddingBottom = 4,
         PaddingLeft = 5,
         PaddingRight = 5,
         OffsetTop = 4,
+        OffsetLeft = 0,
         CornerRadius = 7,
+        VerticalAlignment = SkinVerticalAlignment.Center,
         ItemSpacing = 3,
         IndexSpacing = 6,
         CandidateFontSize = 18,
+        CandidateWeight = SkinFontWeight.Regular,
+        IndexFontSize = 11,
         IndexWeight = SkinFontWeight.Light,
         CodeFontSize = 12,
+        BorderWidth = 0.5,
+        ShadowEnabled = true,
         ShadowRadius = 4,
         ShadowOffsetX = 2,
         ShadowOffsetY = -2,
+        HighlightEnabled = true,
+        HighlightCornerRadius = 5,
         HighlightPaddingTop = 1,
         HighlightPaddingBottom = 1,
         HighlightPaddingLeft = 3,
         HighlightPaddingRight = 3,
-        HighlightWeight = SkinFontWeight.Regular
+        HighlightWeight = SkinFontWeight.Regular,
+        Light = DefaultLight,
+        Dark = DefaultDark
     };
 
     // 珊瑚红：浅色白底、深色近黑底，首选珊瑚红高亮

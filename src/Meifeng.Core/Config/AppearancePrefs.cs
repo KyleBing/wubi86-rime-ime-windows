@@ -235,10 +235,10 @@ public static class AppearancePrefs
         }
     }
 
-    // 是否在每个候选词后面显示它的五笔编码
+    // 是否在每个候选词后面显示它的五笔编码。默认不显示
     public static bool ShowPreeditInPanel
     {
-        get => Store.GetBool(KeyShowPreedit) ?? true;
+        get => Store.GetBool(KeyShowPreedit) ?? false;
         set
         {
             Store.Set(KeyShowPreedit, value);

@@ -48,7 +48,7 @@ public static class BehaviorPrefs
 
     private static PrefsStore Store => PrefsStore.Shared;
 
-    // 每页候选数 → menu/page_size
+    // 每页候选数 → menu/page_size。未设置时默认 5
     public static int PageSize
     {
         get
@@ -56,7 +56,7 @@ public static class BehaviorPrefs
             var v = Store.GetInt(KeyPageSize) ?? 0;
             if (v > 0) return Math.Clamp(v, 3, 9);
             var legacy = Store.GetInt(KeyLegacyPageSize) ?? 0;
-            return legacy > 0 ? Math.Clamp(legacy, 3, 9) : 9;
+            return legacy > 0 ? Math.Clamp(legacy, 3, 9) : 5;
         }
         set
         {

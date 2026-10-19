@@ -1,6 +1,8 @@
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using Meifeng.Core.Config;
+using MeifengWubi.Interop;
 
 namespace MeifengWubi.Dialogs;
 
@@ -36,10 +38,12 @@ internal abstract class ImeDialog : Window
         }
     }
 
-    // 显示并抢到前台（文本服务在送键前已经允许本进程设置前台窗口）
+    // 显示并抢到前台。全局热键或文本服务的 AllowSetForegroundWindow 允许这次置顶
     public void ShowAndActivate()
     {
         Show();
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd != 0) Native.SetForegroundWindow(hwnd);
         Activate();
         Focus();
     }

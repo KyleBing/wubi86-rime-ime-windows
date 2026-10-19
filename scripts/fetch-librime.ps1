@@ -1,4 +1,4 @@
-# 下载 librime 官方 Windows 预编译包，把 rime.dll 及其依赖放到 third_party/librime/<arch>
+﻿# 下载 librime 官方 Windows 预编译包，把 rime.dll 及其依赖放到 third_party/librime/<arch>
 # 用法：pwsh scripts/fetch-librime.ps1 [-Tag 1.13.1] [-Arch x64]
 param(
     [string]$Tag = "latest",

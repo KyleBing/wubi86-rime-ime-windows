@@ -38,7 +38,17 @@ internal sealed class ImeUi : IImeUi, IDisposable
     public bool IsDeletePanelOpen => _deleteOpen;
     public bool IsRankPanelOpen => _rankOpen;
 
+    // 候选条真正显示或关掉时通知。排序热键只在显示期间登记
+    public event Action<bool>? CandidatePopupChanged;
+
     private void Post(Action action) => _dispatcher.BeginInvoke(action);
+
+    // 已经在界面线程（全局热键回调）时直接执行，这样窗口能在 WM_HOTKEY 里抢到前台
+    private void PostOrRun(Action action)
+    {
+        if (_dispatcher.CheckAccess()) action();
+        else Post(action);
+    }
 
     public void SetCaret(int x, int y, int width, int height)
     {
@@ -55,9 +65,14 @@ internal sealed class ImeUi : IImeUi, IDisposable
         _modeHint?.Hide();
         _candidates?.SetCaret(_caret);
         _candidates?.Show(page);
+        CandidatePopupChanged?.Invoke(_candidates?.Visible == true);
     });
 
-    public void HideCandidates() => Post(() => _candidates?.Hide());
+    public void HideCandidates() => Post(() =>
+    {
+        _candidates?.Hide();
+        CandidatePopupChanged?.Invoke(false);
+    });
 
     public void ShowModeHint(bool asciiMode) => Post(() =>
     {
@@ -95,9 +110,10 @@ internal sealed class ImeUi : IImeUi, IDisposable
     public void PresentRankPanel(string preedit, IReadOnlyList<string> candidates, Action<string, bool> onClosed)
     {
         _rankOpen = true;
-        Post(() =>
+        PostOrRun(() =>
         {
             _candidates?.Hide();
+            CandidatePopupChanged?.Invoke(false);
             CandidateRankWindow.Present(preedit, candidates, Wrap(onClosed, () => _rankOpen = false));
         });
     }
@@ -105,9 +121,10 @@ internal sealed class ImeUi : IImeUi, IDisposable
     public void PresentRankUnavailable(string reason, string preedit, Action<string, bool> onClosed)
     {
         _rankOpen = true;
-        Post(() =>
+        PostOrRun(() =>
         {
             _candidates?.Hide();
+            CandidatePopupChanged?.Invoke(false);
             CandidateRankWindow.PresentUnavailable(reason, preedit, Wrap(onClosed, () => _rankOpen = false));
         });
     }

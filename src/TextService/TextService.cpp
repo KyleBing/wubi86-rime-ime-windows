@@ -366,6 +366,8 @@ bool TextService::KeyboardEnabled(ITfContext* context) {
 }
 
 bool TextService::SendKey(WPARAM vk, LPARAM lParam, bool up, KeyResult& result) {
+    // 排序 / 删除窗口在服务进程里弹出。前台是别的程序时，先允许服务进程抢到前台
+    if (!up && pipe_.ServerPid()) AllowSetForegroundWindow(pipe_.ServerPid());
     int mods = CurrentMods();
     Protocol::Fields req = {
         {"cmd", "key"},

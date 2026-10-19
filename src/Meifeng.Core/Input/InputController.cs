@@ -262,7 +262,7 @@ public sealed class InputController
 
         // 候选出现时：造词那组修饰键 + 数字，删除对应候选
         if (HandleDeleteCandidateShortcut(key)) return true;
-        // 同一组修饰键 + 0：拖动排序当前候选
+        // 同一组修饰键 + 0：拖动排序当前候选。前台软件吃掉这组键时，改由候选条期间的全局热键调用 OpenRankFromHotKey
         if (HandleRankCandidatesShortcut(key)) return true;
 
         // Win 组合键交给系统
@@ -698,29 +698,44 @@ public sealed class InputController
     {
         if (!MatchesQuickAddModifiers(key)) return false;
         if (key.Vk != Vk.D0 && key.Vk != Vk.Numpad0) return false;
-        if (_ui.IsDeletePanelOpen) return false;
+        var show = PrepareRankShow();
+        show?.Invoke();
+        return show != null;
+    }
+
+    // 候选条期间的全局热键。必须在收到热键的界面线程上调用，窗口才能压过当前软件
+    public void OpenRankFromHotKey()
+    {
+        Action? show;
+        lock (_lock) show = PrepareRankShow();
+        show?.Invoke();
+    }
+
+    // 组字中才弹出。返回的动作在锁外执行，避免显示窗口时重入这把锁
+    private Action? PrepareRankShow()
+    {
+        if (_ui.IsDeletePanelOpen || _ui.IsRankPanelOpen) return null;
         var snap = _engine.Snapshot(peekOnly: true);
-        if (snap is not { IsComposing: true }) return false;
+        if (snap is not { IsComposing: true }) return null;
         var preedit = snap.Preedit ?? "";
         if (DateTimeCandidates.CandidatesFor(preedit) != null)
         {
             BeginPanel();
-            _ui.PresentRankUnavailable("这是预置的日期或时间候选，没有词库权重，不能排序。", preedit, RestoreAfterPanel);
-            return true;
+            return () => _ui.PresentRankUnavailable("这是预置的日期或时间候选，没有词库权重，不能排序。", preedit, RestoreAfterPanel);
         }
         var raw = _engine.RawInput();
         var compact = new string(raw.ToLowerInvariant().Where(c => c < 128 && (char.IsLetter(c) || c == '\'')).ToArray());
         if (ReverseLookup.IsMatch(compact))
         {
             BeginPanel();
-            _ui.PresentRankUnavailable("拼音反查的顺序不由五笔权重决定，不能在这里调整。", preedit, RestoreAfterPanel);
-            return true;
+            return () => _ui.PresentRankUnavailable("拼音反查的顺序不由五笔权重决定，不能在这里调整。", preedit, RestoreAfterPanel);
         }
         var texts = _engine.AllCandidateTexts().Select(t => t.Trim()).Where(t => t.Length > 0).ToList();
-        if (texts.Count == 0) return true;
+        // 整表接口没取到时，用当前页候选，避免吃掉按键却不弹窗
+        if (texts.Count == 0) texts = snap.Candidates.Select(c => c.Text.Trim()).Where(t => t.Length > 0).ToList();
+        if (texts.Count == 0) return null;
         BeginPanel();
-        _ui.PresentRankPanel(preedit, texts, RestoreAfterPanel);
-        return true;
+        return () => _ui.PresentRankPanel(preedit, texts, RestoreAfterPanel);
     }
 
     // 记下打开窗口时的输入框；窗口抢焦点时保留编码
