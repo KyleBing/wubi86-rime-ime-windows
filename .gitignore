@@ -1,0 +1,8 @@
+bin/
+obj/
+out/
+.vs/
+*.user
+*.suo
+third_party/librime/
+CMakeUserPresets.json

@@ -1,0 +1,137 @@
+using System.Windows.Threading;
+using Meifeng.Core.Input;
+using MeifengWubi.Candidate;
+using MeifengWubi.Dialogs;
+using MeifengWubi.Interop;
+
+namespace MeifengWubi;
+
+// IImeUi 的 WPF 实现：引擎线程调用，统一投递到界面线程执行，绝不阻塞调用方
+internal sealed class ImeUi : IImeUi, IDisposable
+{
+    private readonly Dispatcher _dispatcher;
+    private CandidateWindow? _candidates;
+    private ModeHintWindow? _modeHint;
+    private Native.RECT _caret;
+    private volatile bool _deleteOpen;
+    private volatile bool _rankOpen;
+
+    // 构造后再接上控制器（两者互相引用）
+    public InputController? Controller { get; set; }
+
+    public ImeUi(Dispatcher dispatcher)
+    {
+        _dispatcher = dispatcher;
+        _dispatcher.Invoke(() =>
+        {
+            _candidates = new CandidateWindow();
+            _modeHint = new ModeHintWindow();
+            // 点击候选在后台交给控制器，避免界面线程等引擎锁
+            _candidates.CandidateClicked += index =>
+            {
+                var controller = Controller;
+                if (controller != null) Task.Run(() => controller.ClickCandidate(index));
+            };
+        });
+    }
+
+    public bool IsDeletePanelOpen => _deleteOpen;
+    public bool IsRankPanelOpen => _rankOpen;
+
+    private void Post(Action action) => _dispatcher.BeginInvoke(action);
+
+    public void SetCaret(int x, int y, int width, int height)
+    {
+        var rect = new Native.RECT { Left = x, Top = y, Right = x + Math.Max(1, width), Bottom = y + Math.Max(1, height) };
+        Post(() =>
+        {
+            _caret = rect;
+            _candidates?.SetCaret(rect);
+        });
+    }
+
+    public void ShowCandidates(CandidatePage page) => Post(() =>
+    {
+        _modeHint?.Hide();
+        _candidates?.SetCaret(_caret);
+        _candidates?.Show(page);
+    });
+
+    public void HideCandidates() => Post(() => _candidates?.Hide());
+
+    public void ShowModeHint(bool asciiMode) => Post(() =>
+    {
+        if (_candidates?.Visible == true) return;
+        if (_caret.Right <= _caret.Left && _caret.Bottom <= _caret.Top) return;
+        _modeHint?.Show(asciiMode, _caret);
+    });
+
+    public void HideModeHint() => Post(() => _modeHint?.Hide());
+
+    // 外观设置变化后重画当前候选
+    public void RefreshAppearance() => Post(() => _candidates?.Refresh());
+
+    // 标记立即生效：窗口出现前的按键也按“面板已打开”放行
+    public void PresentDeletePanel(string candidate, string preedit, Action<string, bool> onClosed)
+    {
+        _deleteOpen = true;
+        Post(() =>
+        {
+            _candidates?.Hide();
+            DeleteCandidateWindow.Present(candidate, preedit, Wrap(onClosed, () => _deleteOpen = false));
+        });
+    }
+
+    public void PresentDeleteUnavailable(string reason, string preedit, Action<string, bool> onClosed)
+    {
+        _deleteOpen = true;
+        Post(() =>
+        {
+            _candidates?.Hide();
+            DeleteCandidateWindow.PresentUnavailable(reason, preedit, Wrap(onClosed, () => _deleteOpen = false));
+        });
+    }
+
+    public void PresentRankPanel(string preedit, IReadOnlyList<string> candidates, Action<string, bool> onClosed)
+    {
+        _rankOpen = true;
+        Post(() =>
+        {
+            _candidates?.Hide();
+            CandidateRankWindow.Present(preedit, candidates, Wrap(onClosed, () => _rankOpen = false));
+        });
+    }
+
+    public void PresentRankUnavailable(string reason, string preedit, Action<string, bool> onClosed)
+    {
+        _rankOpen = true;
+        Post(() =>
+        {
+            _candidates?.Hide();
+            CandidateRankWindow.PresentUnavailable(reason, preedit, Wrap(onClosed, () => _rankOpen = false));
+        });
+    }
+
+    public void NoteCommittedWord(string text) => QuickAddWindow.NoteCommittedWord(text);
+
+    // 关闭回调只执行一次：先清标记，再把编码交回控制器
+    private static Action<string, bool> Wrap(Action<string, bool> onClosed, Action clear)
+    {
+        var done = 0;
+        return (code, reset) =>
+        {
+            if (Interlocked.Exchange(ref done, 1) != 0) return;
+            clear();
+            onClosed(code, reset);
+        };
+    }
+
+    public void Dispose()
+    {
+        _dispatcher.Invoke(() =>
+        {
+            _candidates?.Dispose();
+            _modeHint?.Dispose();
+        });
+    }
+}

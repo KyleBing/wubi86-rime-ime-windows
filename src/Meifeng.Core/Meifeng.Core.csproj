@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 跨平台的核心逻辑：配置、词库、同步、Rime 封装、按键处理。不依赖 WPF，便于单测 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Meifeng.Core</RootNamespace>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+</Project>

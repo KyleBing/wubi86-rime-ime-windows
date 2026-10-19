@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>MeifengWubi</AssemblyName>
+    <RootNamespace>MeifengWubi</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\Resources\Brand\AppIcon.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <Product>玫枫五笔</Product>
+    <Company>KyleBing</Company>
+    <Copyright>Copyright © KyleBing</Copyright>
+    <!-- Fluent 主题在 .NET 10 仍标为实验特性 -->
+    <!-- WFO0003：WPF 窗口需要清单里的 PerMonitorV2 DPI 声明 -->
+    <NoWarn>$(NoWarn);WPF0001;WFO0003</NoWarn>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <!-- WinForms 与 WPF 同名类型冲突，只保留 WPF 的隐式命名空间 -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <!-- WPF 默认不带 System.IO；Path 用别名避开 System.Windows.Shapes.Path -->
+    <Using Include="System.IO" />
+    <Using Include="System.IO.Path" Alias="Path" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Meifeng.Core\Meifeng.Core.csproj" />
+  </ItemGroup>
+
+  <!-- 运行时资源：Rime 方案、共享数据、品牌图标；rime.dll 由 scripts/fetch-librime.ps1 放到 third_party -->
+  <ItemGroup>
+    <Content Include="..\..\Resources\**\*" LinkBase="Resources" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\third_party\librime\x64\*.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\..\third_party\librime\x64')" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,7 @@
+SharedSupport 是 librime 编译方案时读取的预设数据（共享目录），不写入用户词库目录。
+
+default.yaml、key_bindings.yaml、punctuation.yaml、symbols.yaml
+来自 Rime prelude（https://github.com/rime/rime-prelude），BSD 3-Clause License。
+
+opencc/ 来自 OpenCC（https://github.com/BYVoid/OpenCC），Apache License 2.0。
+只带了方案里 opencc_config: s2hk.json 用到的配置和词典。
