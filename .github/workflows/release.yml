@@ -72,7 +72,17 @@ jobs:
         env:
           # fetch-librime.ps1 用它调 GitHub API，避免共享 IP 撞上未认证限流
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./build.ps1
+        run: |
+          # 失败时把输出末段写成注解，未登录也能在 check-run 里看到原因
+          $log = @()
+          try {
+            ./build.ps1 2>&1 | Tee-Object -Variable log | ForEach-Object { Write-Host $_ }
+            if ($LASTEXITCODE -ne 0) { throw "build.ps1 退出码 $LASTEXITCODE" }
+          } catch {
+            $tail = ($log | Select-Object -Last 15) -join ' ⏎ '
+            Write-Host "::error title=build.ps1 失败::$($_.Exception.Message) ⏎ $tail"
+            throw
+          }
 
       - name: 收集安装包
         shell: pwsh
