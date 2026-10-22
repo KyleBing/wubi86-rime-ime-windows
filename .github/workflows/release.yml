@@ -39,6 +39,7 @@ jobs:
           dotnet-version: "10.0.x"
 
       # build.ps1 找不到 iscc 时会跳过安装包，这里先装好
+      # 简体中文语言文件由 installer/ChineseSimplified.isl 提供，不依赖安装目录
       - name: 安装 Inno Setup
         run: choco install innosetup --no-progress -y
 
