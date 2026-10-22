@@ -110,6 +110,9 @@ public static class UpdateChecker
         request.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true };
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("MeifengWubi", Format(current)));
         using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        // 404 通常表示仓库还没有发布过版本，给一句能看懂的提示
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            throw new InvalidOperationException("更新服务器上还没有发布版本");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
     }
