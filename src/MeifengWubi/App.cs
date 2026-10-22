@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows;
 using System.Windows.Threading;
 using Meifeng.Core;
@@ -7,6 +8,7 @@ using Meifeng.Core.Input;
 using Meifeng.Core.Ipc;
 using Meifeng.Core.Lexicon;
 using Meifeng.Core.Sync;
+using Meifeng.Core.Update;
 using MeifengWubi.Dialogs;
 using MeifengWubi.Settings;
 using MeifengWubi.Ui;
@@ -28,6 +30,10 @@ internal sealed class App : Application
     private TrayIcon? _tray;
     private GlobalHotKey? _hotKey;
     private RankHotKey? _rankHotKey;
+    private DispatcherTimer? _updateTimer;
+
+    // 更新卡片在启动安装器后需要让本进程收尾退出
+    private static App? Instance;
 
     [STAThread]
     public static int Main(string[] args)
@@ -53,6 +59,7 @@ internal sealed class App : Application
             return 0;
         }
         var app = new App { _mutex = mutex };
+        Instance = app;
         app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         app.Startup += (_, _) => app.Boot(openSettings: wantSettings || !args.Contains("--background", StringComparer.OrdinalIgnoreCase));
         return app.Run();
@@ -86,6 +93,13 @@ internal sealed class App : Application
         _tray.SettingsRequested += () => SettingsWindow.Open();
         _tray.QuickAddRequested += QuickAddWindow.Present;
         _tray.DeployRequested += DeployFromMenu;
+        // 托盘菜单和气泡都打开帮助页的「版本与更新」，再触发一次手动检查
+        _tray.UpdateRequested += () =>
+        {
+            SettingsWindow.Open(SettingsWindow.Section.Help);
+            // 等页面挂到窗口上再触发，保证更新卡片已经创建
+            Dispatcher.BeginInvoke(UpdateCard.RequestCheck, DispatcherPriority.Background);
+        };
         _tray.ExitRequested += Quit;
         _controller.AsciiModeChanged += ascii => Dispatcher.BeginInvoke(() => _tray?.SetMode(ascii));
 
@@ -142,7 +156,46 @@ internal sealed class App : Application
         waiter.Start();
 
         if (openSettings) SettingsWindow.Open();
+
+        // 后台查更新：延迟启动，避开 Rime 首次整本编译
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(20));
+            await AutoCheckUpdateAsync();
+        });
+        // 输入法服务可能连续开很久，每 6 小时再看一次；是否真的发请求由 24 小时节流决定
+        _updateTimer = new DispatcherTimer { Interval = TimeSpan.FromHours(6) };
+        _updateTimer.Tick += (_, _) => _ = AutoCheckUpdateAsync();
+        _updateTimer.Start();
     }
+
+    // 静默检查：每 24 小时最多一次，只在有新版本且没被跳过时弹托盘气泡
+    private async Task AutoCheckUpdateAsync()
+    {
+        if (!UpdateChecker.AutoCheck || !UpdateChecker.IsAutoCheckDue) return;
+        try
+        {
+            var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0);
+            var result = await UpdateChecker.CheckAsync(current);
+            if (result.Status != UpdateCheckStatus.NewVersion || result.Manifest is not { } manifest) return;
+            if (manifest.Version == UpdateChecker.SkippedVersion) return;
+            if (manifest.Version == UpdateChecker.LastNotifiedVersion) return;
+
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                UpdateChecker.LastNotifiedVersion = manifest.Version;
+                _tray?.ShowBalloon("玫枫五笔有新版本", $"v{manifest.Version} 已发布，点此查看更新说明。", false);
+            });
+        }
+        catch (Exception e)
+        {
+            // 更新检查失败不影响输入法（离线、限流都算正常）
+            Log.Write($"update check: {e.Message}");
+        }
+    }
+
+    // 安装器接管后立刻退出，让出 exe / DLL 的文件占用
+    internal static void QuitForUpdate() => Instance?.Dispatcher.BeginInvoke(() => Instance.Quit());
 
     // 文本服务语言栏菜单的请求
     private void HandleOpen(string what)
@@ -168,6 +221,7 @@ internal sealed class App : Application
     {
         try
         {
+            _updateTimer?.Stop();
             _hotKey?.Dispose();
             _rankHotKey?.Dispose();
             _pipe?.Dispose();

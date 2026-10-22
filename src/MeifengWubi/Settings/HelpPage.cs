@@ -57,7 +57,10 @@ internal static class HelpPage
             ("OpenCC", "Apache License 2.0。简繁转换用到的配置和词典。https://github.com/BYVoid/OpenCC"),
             ("极点码表", "内置五笔方案与词库 rime-wubi86-jidian。https://github.com/KyleBing/rime-wubi86-jidian")
         ]);
+        // 版本与更新放最上面，用户找「怎么升级」时第一眼能看到
+        var update = new UpdateCard();
         var stack = UiKit.VStack(12,
+            update.Build(),
             UiKit.Card("预置编码", "输入以下编码，候选中会出现基于系统时间的内容。", presets),
             UiKit.Card("拼音反查", null, lookup),
             UiKit.Card("常用按键", null, keys),

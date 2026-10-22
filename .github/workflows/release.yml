@@ -3,8 +3,9 @@
 # 手动运行只打包，产物留在 Actions 里。
 #
 # 附件名固定为 MeifengWubi-Windows-setup.exe，不带版本号，说明站因此可以一直用
-#   https://github.com/KyleBing/wubi86-rime-windows-ime/releases/latest/download/MeifengWubi-Windows-setup.exe
+#   https://github.com/KyleBing/wubi86-rime-ime-windows/releases/latest/download/MeifengWubi-Windows-setup.exe
 # 这条链接，发新版本只换附件，不用改文档。版本号看 Release 标题。
+# 同时会生成 update.json（带 sha256 和大小），客户端用它判断有没有新版本。
 name: Release
 
 on:
@@ -107,6 +108,42 @@ jobs:
           Set-Content -Path notes.md -Value $text -Encoding utf8
           Get-Content notes.md
 
+      # 客户端只读这个附件：releases/latest/download/update.json
+      # 清单里带 SHA-256 和大小，下载后先校验再启动安装器
+      - name: 生成更新清单
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $asset = "dist/$env:ASSET_NAME"
+          if (-not (Test-Path $asset)) { throw "找不到安装包 $asset" }
+          $hash = (Get-FileHash $asset -Algorithm SHA256).Hash.ToLowerInvariant()
+          $repo = $env:GITHUB_REPOSITORY
+          $manifest = [ordered]@{
+            schema = 1
+            platform = "windows"
+            channel = "stable"
+            version = $version
+            build = 0
+            published_at = (Get-Date -Format "yyyy-MM-dd")
+            download_url = "https://github.com/$repo/releases/latest/download/$env:ASSET_NAME"
+            fallback_url = "https://kylebing.cn/wubi/download/$env:ASSET_NAME"
+            sha256 = $hash
+            size = (Get-Item $asset).Length
+            min_system = "10.0.19041"
+            minimum_version = "1.0.0"
+            notes = (Get-Content notes.md -Raw).Trim()
+            notes_url = "https://github.com/$repo/releases/tag/$env:GITHUB_REF_NAME"
+          }
+          Set-Content -Path "dist/update.json" -Value ($manifest | ConvertTo-Json -Depth 4) -Encoding utf8
+          Get-Content "dist/update.json"
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeifengWubi-${{ steps.version.outputs.version }}-windows
+          path: dist/*
+          if-no-files-found: error
+
       - name: 发布 Release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
@@ -119,13 +156,15 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $title = "v${{ steps.version.outputs.version }}"
           $asset = (Get-Item "dist/$env:ASSET_NAME").FullName
+          $manifest = (Get-Item "dist/update.json").FullName
           gh release view $tag --json tagName *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release edit $tag --title $title --notes-file notes.md --latest
-            gh release upload $tag $asset --clobber
+            gh release upload $tag $asset $manifest --clobber
           } else {
-            gh release create $tag $asset --title $title --notes-file notes.md --latest
+            gh release create $tag $asset $manifest --title $title --notes-file notes.md --latest
           }
           if ($LASTEXITCODE -ne 0) { throw "发布 Release 失败" }
           Write-Host "已发布：https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$tag"
           Write-Host "固定下载：https://github.com/$env:GITHUB_REPOSITORY/releases/latest/download/$env:ASSET_NAME"
+          Write-Host "更新清单：https://github.com/$env:GITHUB_REPOSITORY/releases/latest/download/update.json"

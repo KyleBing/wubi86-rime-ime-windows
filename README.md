@@ -47,6 +47,25 @@ https://github.com/KyleBing/wubi86-rime-ime-windows/releases/latest/download/Mei
 
 安装后到「设置 › 时间和语言 › 语言和区域 › 中文（简体） › 键盘」添加「玫枫五笔」。
 
+## 程序更新
+
+「帮助 › 版本与更新」可以手动检查，也会在启动后静默检查一次（24 小时内不重复，可在卡片里关闭）。
+客户端只读 Release 附件里的清单，固定地址：
+
+```
+https://github.com/KyleBing/wubi86-rime-ime-windows/releases/latest/download/update.json
+```
+
+`release.yml` 打 tag 时会生成清单，带 `sha256` 和 `size`。点「下载并安装」后先下载到
+`%APPDATA%\MeifengWubi\update`，校验通过再启动 Inno 安装器
+（`/VERYSILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS`）。安装脚本会先结束服务进程、
+重新注册两份 TSF DLL；升级需要管理员权限，被其他程序占用的 DLL 会排到注销或重启时替换。
+
+清单之外还有一个备用地址 `https://kylebing.cn/wubi/update/windows.json`，
+由说明站仓库的 `scripts/sync_update_manifests.sh` 同步，GitHub 不通时才会用到。
+
+注意：仓库必须先有 Release，`releases/latest/download/...` 才会有内容。
+
 ### 只改服务进程时
 
 ```powershell

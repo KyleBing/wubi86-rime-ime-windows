@@ -17,6 +17,7 @@ internal sealed class TrayIcon : IDisposable
     public event Action? SettingsRequested;
     public event Action? QuickAddRequested;
     public event Action? DeployRequested;
+    public event Action? UpdateRequested;
     public event Action? ExitRequested;
 
     public TrayIcon(bool asciiMode)
@@ -28,6 +29,7 @@ internal sealed class TrayIcon : IDisposable
         menu.Items.Add("玫枫五笔设置…", null, (_, _) => SettingsRequested?.Invoke());
         menu.Items.Add("添加自造词…", null, (_, _) => QuickAddRequested?.Invoke());
         menu.Items.Add("部署", null, (_, _) => DeployRequested?.Invoke());
+        menu.Items.Add("检查更新…", null, (_, _) => UpdateRequested?.Invoke());
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("退出", null, (_, _) => ExitRequested?.Invoke());
         _icon.ContextMenuStrip = menu;
@@ -37,6 +39,8 @@ internal sealed class TrayIcon : IDisposable
             if (e.Button == Forms.MouseButtons.Left) ToggleRequested?.Invoke();
         };
         _icon.DoubleClick += (_, _) => SettingsRequested?.Invoke();
+        // 新版本气泡点开后打开帮助页的「版本与更新」
+        _icon.BalloonTipClicked += (_, _) => UpdateRequested?.Invoke();
         SetMode(asciiMode);
         _icon.Visible = true;
     }
