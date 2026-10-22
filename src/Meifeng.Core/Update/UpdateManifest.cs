@@ -16,7 +16,6 @@ public sealed class UpdateManifest
     [JsonPropertyName("build")] public int Build { get; set; }
     [JsonPropertyName("published_at")] public string? PublishedAt { get; set; }
     [JsonPropertyName("download_url")] public string? DownloadUrl { get; set; }
-    [JsonPropertyName("fallback_url")] public string? FallbackUrl { get; set; }
     [JsonPropertyName("sha256")] public string? Sha256 { get; set; }
     [JsonPropertyName("size")] public long Size { get; set; }
     [JsonPropertyName("min_system")] public string? MinSystem { get; set; }

@@ -61,8 +61,8 @@ https://github.com/KyleBing/wubi86-rime-ime-windows/releases/latest/download/upd
 （`/VERYSILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS`）。安装脚本会先结束服务进程、
 重新注册两份 TSF DLL；升级需要管理员权限，被其他程序占用的 DLL 会排到注销或重启时替换。
 
-清单之外还有一个备用地址 `https://kylebing.cn/wubi/update/windows.json`，
-由说明站仓库的 `scripts/sync_update_manifests.sh` 同步，GitHub 不通时才会用到。
+清单和安装包都只放在本仓库的 Releases 里，不在别的服务器上托管文件。`download_url`
+就是 `releases/latest/download/<固定附件名>` 这一条，客户端也只请求这个地址。
 
 注意：仓库必须先有 Release，`releases/latest/download/...` 才会有内容。
 第一个带「下载并安装」的版本发布后，老版本用户仍要手动更新一次；之后才能从应用内升级。

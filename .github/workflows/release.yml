@@ -119,7 +119,6 @@ jobs:
             build = 0
             published_at = (Get-Date -Format "yyyy-MM-dd")
             download_url = "https://github.com/$repo/releases/latest/download/$env:ASSET_NAME"
-            fallback_url = "https://kylebing.cn/wubi/download/$env:ASSET_NAME"
             sha256 = $hash
             size = (Get-Item $asset).Length
             min_system = "10.0.19041"

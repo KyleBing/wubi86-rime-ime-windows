@@ -13,7 +13,6 @@ public class UpdateManifestTests
           "version": "1.0.3",
           "published_at": "2026-10-30",
           "download_url": "https://example.com/setup.exe",
-          "fallback_url": "https://mirror.example.com/setup.exe",
           "sha256": "ABCDEF",
           "size": 123,
           "minimum_version": "1.0.0",
@@ -31,7 +30,6 @@ public class UpdateManifestTests
         Assert.Equal("windows", manifest.Platform);
         Assert.Equal("1.0.3", manifest.Version);
         Assert.Equal("https://example.com/setup.exe", manifest.DownloadUrl);
-        Assert.Equal("https://mirror.example.com/setup.exe", manifest.FallbackUrl);
         Assert.Equal("ABCDEF", manifest.Sha256);
         Assert.Equal(123, manifest.Size);
         Assert.Equal("1.0.0", manifest.MinimumVersion);

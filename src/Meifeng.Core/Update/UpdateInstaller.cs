@@ -13,46 +13,32 @@ public static class UpdateInstaller
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(10) };
 
-    // 依次尝试 download_url 和 fallback_url；全部失败时抛出带最后一条错误信息的异常
+    // 只从清单里的 download_url 下载；地址固定指向本仓库 Release 的附件
     public static async Task<string> DownloadAsync(
         UpdateManifest manifest,
         IProgress<double>? progress = null,
         CancellationToken ct = default)
     {
-        var urls = new[] { manifest.DownloadUrl, manifest.FallbackUrl }
-            .Where(u => !string.IsNullOrWhiteSpace(u))
-            .Select(u => u!.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (urls.Length == 0) throw new InvalidOperationException("更新清单里没有下载地址");
+        var url = manifest.DownloadUrl?.Trim();
+        if (string.IsNullOrWhiteSpace(url)) throw new InvalidOperationException("更新清单里没有下载地址");
         if (string.IsNullOrWhiteSpace(manifest.Version)) throw new InvalidOperationException("更新清单里没有版本号");
 
         Directory.CreateDirectory(UpdateRoot);
         // 文件名带版本号，失败重试时不会和上一版混淆
         var target = Path.Combine(UpdateRoot, $"MeifengWubi-{manifest.Version}-setup.exe");
 
-        Exception? last = null;
-        foreach (var url in urls)
+        try
         {
-            try
-            {
-                await DownloadOneAsync(url, target, progress, ct).ConfigureAwait(false);
-                Verify(target, manifest);
-                CleanupOldVersions(manifest.Version);
-                return target;
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception e)
-            {
-                last = e;
-                TryDelete(target);
-            }
+            await DownloadOneAsync(url, target, progress, ct).ConfigureAwait(false);
+            Verify(target, manifest);
+            CleanupOldVersions(manifest.Version);
+            return target;
         }
-
-        throw new InvalidOperationException($"下载更新失败：{last?.Message}", last);
+        catch
+        {
+            TryDelete(target);
+            throw;
+        }
     }
 
     // 启动 Inno Setup 的静默安装。/CLOSEAPPLICATIONS 会关掉占用文件的程序，
