@@ -65,6 +65,7 @@ https://github.com/KyleBing/wubi86-rime-ime-windows/releases/latest/download/upd
 由说明站仓库的 `scripts/sync_update_manifests.sh` 同步，GitHub 不通时才会用到。
 
 注意：仓库必须先有 Release，`releases/latest/download/...` 才会有内容。
+第一个带「下载并安装」的版本发布后，老版本用户仍要手动更新一次；之后才能从应用内升级。
 
 ### 只改服务进程时
 

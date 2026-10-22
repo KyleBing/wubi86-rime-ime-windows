@@ -45,7 +45,7 @@ internal sealed class UpdateCard
     {
         _status.MaxWidth = 460;
         _status.Margin = new Thickness(0, 8, 0, 0);
-        _check.Click += (_, _) => _ = CheckAsync(manual: true);
+        _check.Click += (_, _) => _ = CheckAsync();
         _install.Click += (_, _) => _ = InstallAsync();
         _skip.Click += (_, _) => SkipCurrent();
         _current = new WeakReference<UpdateCard>(this);
@@ -57,7 +57,7 @@ internal sealed class UpdateCard
     // 托盘菜单打开帮助页后调用，直接开始检查
     public static void RequestCheck()
     {
-        if (_current?.TryGetTarget(out var card) == true) _ = card.CheckAsync(manual: true);
+        if (_current?.TryGetTarget(out var card) == true) _ = card.CheckAsync();
     }
 
     public FrameworkElement Build()
@@ -76,7 +76,7 @@ internal sealed class UpdateCard
         return card;
     }
 
-    private async Task CheckAsync(bool manual)
+    private async Task CheckAsync()
     {
         if (_busy) return;
         _busy = true;
