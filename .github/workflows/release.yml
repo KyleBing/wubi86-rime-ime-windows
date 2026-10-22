@@ -73,16 +73,12 @@ jobs:
           # fetch-librime.ps1 用它调 GitHub API，避免共享 IP 撞上未认证限流
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 失败时把输出末段写成注解，完整日志留给下面的兜底步骤上传
-          $log = @()
-          try {
-            ./build.ps1 2>&1 | Tee-Object -Variable log | ForEach-Object { Write-Host $_ }
-            if ($LASTEXITCODE -ne 0) { throw "build.ps1 退出码 $LASTEXITCODE" }
-          } catch {
-            $log | Set-Content build.log -Encoding utf8
-            $tail = ($log | Select-Object -Last 15) -join ' ⏎ '
-            Write-Host "::error title=build.ps1 失败::$($_.Exception.Message) ⏎ $tail"
-            throw
+          # 输出同时落盘到 build.log：脚本抛错时管道会中断，文件里也留有已产生的部分
+          & ./build.ps1 *>&1 | Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) {
+            $tail = (Get-Content build.log -Tail 15) -join ' ⏎ '
+            Write-Host "::error title=build.ps1 失败（退出码 $LASTEXITCODE）::$tail"
+            exit $LASTEXITCODE
           }
 
       # 失败时把完整日志发到 ci-logs 这个预发布里，未登录也能下载查看
