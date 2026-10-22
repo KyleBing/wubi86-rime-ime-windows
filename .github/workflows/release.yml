@@ -201,3 +201,6 @@ jobs:
             gh release delete ci-logs --yes --cleanup-tag
             Write-Host "已删除 ci-logs 预发布。"
           }
+          # ci-logs 不存在时上一条 gh 会把 $LASTEXITCODE 留成 1，
+          # PowerShell 步骤按它决定退出码，不清零会让已经成功的发版被标红
+          exit 0
