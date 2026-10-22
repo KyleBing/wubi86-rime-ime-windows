@@ -69,6 +69,9 @@ jobs:
       # 会先下载 librime 预编译包，再编译服务进程、两份 TSF DLL 和安装包
       - name: 编译并打包
         shell: pwsh
+        env:
+          # fetch-librime.ps1 用它调 GitHub API，避免共享 IP 撞上未认证限流
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./build.ps1
 
       - name: 收集安装包

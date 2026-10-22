@@ -12,9 +12,17 @@ $dest = Join-Path $root "third_party/librime/$Arch"
 $work = Join-Path ([IO.Path]::GetTempPath()) "meifeng-librime"
 
 # 查 GitHub 发布，找 Windows MSVC 对应架构的 7z 包
+# CI 上带上 GITHUB_TOKEN，否则 runner 的共享 IP 很容易撞上未认证的 60 次/小时限流
 $api = if ($Tag -eq "latest") { "https://api.github.com/repos/rime/librime/releases/latest" } else { "https://api.github.com/repos/rime/librime/releases/tags/$Tag" }
+$headers = @{ "User-Agent" = "meifeng-wubi-build"; "Accept" = "application/vnd.github+json" }
+if ($env:GITHUB_TOKEN) { $headers["Authorization"] = "Bearer $env:GITHUB_TOKEN" }
 Write-Host "查询 librime 发布：$api"
-$release = Invoke-RestMethod -Uri $api -Headers @{ "User-Agent" = "meifeng-wubi-build" }
+try {
+    $release = Invoke-RestMethod -Uri $api -Headers $headers
+} catch {
+    $status = $_.Exception.Response.StatusCode.value__
+    throw "查询 librime 发布失败（HTTP $status）：$($_.Exception.Message)"
+}
 $pattern = if ($Arch -eq "x64") { "Windows-msvc-x64\.7z$" } else { "Windows-msvc-x86\.7z$" }
 $asset = $release.assets | Where-Object { $_.name -match $pattern -and $_.name -notmatch "deps" } | Select-Object -First 1
 if (-not $asset) { throw "在 $($release.tag_name) 中没找到匹配 $pattern 的发布包" }
