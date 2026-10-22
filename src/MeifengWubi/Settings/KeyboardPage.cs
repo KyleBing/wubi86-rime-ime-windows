@@ -6,11 +6,22 @@ using MeifengWubi.Ui;
 
 namespace MeifengWubi.Settings;
 
-// 按键页：翻页键、二三候选、光标提示、造词快捷键
+// 输入习惯页：回车清码、翻页键、二三候选、光标提示、造词与排序快捷键
 internal static class KeyboardPage
 {
     public static FrameworkElement Build()
     {
+        // 空码清空 / 回车清码：按键时直接判断，改完立即生效，不需要重新部署
+        var emptyCodeText = "打满四码仍无候选时清空编码";
+        var emptyCode = UiKit.Check("", BehaviorPrefs.EmptyCodeClear, on => BehaviorPrefs.EmptyCodeClear = on, emptyCodeText);
+        var emptyCodeNote = UiKit.Label(emptyCodeText, 11, secondary: true, wrap: true);
+        emptyCodeNote.MaxWidth = 360;
+
+        var enterCodeText = "编码中按回车只清空编码，不上屏字母";
+        var enterCode = UiKit.Check("", BehaviorPrefs.EnterClearsCode, on => BehaviorPrefs.EnterClearsCode = on, enterCodeText);
+        var enterCodeNote = UiKit.Label(enterCodeText, 11, secondary: true, wrap: true);
+        enterCodeNote.MaxWidth = 360;
+
         var pagingChoices = Enum.GetValues<PagingKeys>();
         var paging = UiKit.Combo(pagingChoices.Select(p => p.Title()), Array.IndexOf(pagingChoices, BehaviorPrefs.PagingKeys),
             i => BehaviorPrefs.PagingKeys = pagingChoices[i], 210);
@@ -23,32 +34,46 @@ internal static class KeyboardPage
         var caretNote = UiKit.Label(caretText, 11, secondary: true, wrap: true);
         caretNote.MaxWidth = 360;
 
-        var note = UiKit.Label("翻页与选词写入 Rime 配置，下次按键时生效。造词快捷键立即作用于输入法。候选出现时，用与造词相同的修饰键加数字（默认 Ctrl+Alt+1）可删除对应候选，加 0（默认 Ctrl+Alt+0）可拖动排序。这段时间输入法会接管这组键，避免被当前软件占用。排序只改被拖动词条的权重，幅度为 5 或 10。", 11, secondary: true, wrap: true);
+        var note = UiKit.Label("空码清空和回车清码在按键时直接判断，改完立即生效；z 开头的拼音反查和 date / time 等预置编码不参与。翻页与选词写入 Rime 配置，下次按键时生效。造词与排序快捷键立即作用于输入法。候选出现时，用与造词相同的修饰键加数字（默认 Ctrl+Alt+1）可删除对应候选；排序快捷键（默认 Ctrl+Alt+0）由输入法接管，避免被当前软件占用。排序只改被拖动词条的权重，幅度为 5 或 10。", 11, secondary: true, wrap: true);
         note.MaxWidth = 460;
         note.HorizontalAlignment = HorizontalAlignment.Left;
 
+        // 排序快捷键可以单独改，默认与造词同一组修饰键加 0
+        var rankHotKey = new HotKeyRecorder(() => RankPrefs.Display,
+            (vk, mods, display) => RankPrefs.SaveShortcut(vk, mods, display));
+
         var settings = UiKit.VStack(14,
+            Row("空码清空", emptyCode, emptyCodeNote),
+            Row("回车清码", enterCode, enterCodeNote),
             Row("翻页键", paging),
             Row("二三候选", second),
             Row("光标提示", caretHint, caretNote),
-            Row("造词", new HotKeyRecorder()),
+            Row("造词", new QuickAddHotKeyRecorder()),
+            Row("排序", rankHotKey),
             note);
-        return UiKit.Page("按键", "设置翻页、快捷选词和全局造词快捷键。", UiKit.Card("候选按键", null, settings));
+        return UiKit.Page("输入习惯", "设置回车清码、翻页、快捷选词、造词和排序快捷键。", UiKit.Card("打码与按键", null, settings));
     }
 
     private static StackPanel Row(string title, params UIElement[] controls) => UiKit.FormRow(title, 82, controls);
 }
 
-// 造词快捷键：点一下后按下新的组合键
-internal sealed class HotKeyRecorder : StackPanel
+// 快捷键录制：点一下后按下新的组合键。读取显示与保存由构造时给的委托决定
+internal class HotKeyRecorder : StackPanel
 {
     private readonly Button _button = new() { MinWidth = 120, Padding = new Thickness(12, 4, 12, 5) };
     private readonly TextBlock _hint = UiKit.Label("需包含 Ctrl / Alt / Shift / Win 之一。Esc 取消。", 11, secondary: true);
     private readonly TextBlock _error = UiKit.Label("", 11, wrap: true);
+    private readonly Func<string> _read;
+    private readonly Action<uint, HotKeyModifiers, string> _write;
+    private readonly Func<string?>? _errorProvider;
     private bool _recording;
 
-    public HotKeyRecorder()
+    // read：当前快捷键的显示文字；write：保存新快捷键；errorProvider：注册失败时的说明
+    public HotKeyRecorder(Func<string> read, Action<uint, HotKeyModifiers, string> write, Func<string?>? errorProvider = null)
     {
+        _read = read;
+        _write = write;
+        _errorProvider = errorProvider;
         Orientation = Orientation.Vertical;
         var row = UiKit.HStack(8, _button, _hint);
         Children.Add(row);
@@ -59,13 +84,9 @@ internal sealed class HotKeyRecorder : StackPanel
         {
             if (_recording) Stop();
         };
-        QuickAddPrefs.Changed += OnChanged;
-        Unloaded += (_, _) => QuickAddPrefs.Changed -= OnChanged;
         Loaded += (_, _) => ShowCurrent();
         ShowCurrent();
     }
-
-    private void OnChanged() => Dispatcher.BeginInvoke(ShowCurrent);
 
     private void Begin()
     {
@@ -101,7 +122,7 @@ internal sealed class HotKeyRecorder : StackPanel
         if (m.HasFlag(ModifierKeys.Windows)) mods |= HotKeyModifiers.Win;
         if (mods == HotKeyModifiers.None) return;
         var vk = (uint)KeyInterop.VirtualKeyFromKey(key);
-        QuickAddPrefs.SaveShortcut(vk, mods, QuickAddPrefs.DisplayString(mods, KeyName(key)));
+        _write(vk, mods, QuickAddPrefs.DisplayString(mods, KeyName(key)));
         _recording = false;
         ShowCurrent();
     }
@@ -125,17 +146,32 @@ internal sealed class HotKeyRecorder : StackPanel
         _ => key.ToString()
     };
 
-    private void ShowCurrent()
+    protected void ShowCurrent()
     {
         if (_recording) return;
-        _button.Content = QuickAddPrefs.Display;
+        _button.Content = _read();
         _hint.Visibility = Visibility.Collapsed;
         // 稍后再读注册结果（热键在界面线程异步重新注册）
         Dispatcher.BeginInvoke(() =>
         {
-            var err = GlobalHotKey.LastError;
+            var err = _errorProvider?.Invoke();
             _error.Visibility = err == null ? Visibility.Collapsed : Visibility.Visible;
             if (err != null) UiKit.SetTone(_error, err, Tone.Attention);
         }, System.Windows.Threading.DispatcherPriority.Background);
     }
+}
+
+// 造词快捷键：保存后需要重新注册全局热键，注册失败时显示说明
+internal sealed class QuickAddHotKeyRecorder : HotKeyRecorder
+{
+    public QuickAddHotKeyRecorder()
+        : base(() => QuickAddPrefs.Display,
+            (vk, mods, display) => QuickAddPrefs.SaveShortcut(vk, mods, display),
+            () => GlobalHotKey.LastError)
+    {
+        QuickAddPrefs.Changed += OnChanged;
+        Unloaded += (_, _) => QuickAddPrefs.Changed -= OnChanged;
+    }
+
+    private void OnChanged() => Dispatcher.BeginInvoke(ShowCurrent);
 }

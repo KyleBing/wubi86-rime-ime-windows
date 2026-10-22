@@ -72,7 +72,7 @@ internal sealed class SettingsWindow : Window
         Section.UserLexicon => "用户词",
         Section.LexiconDirectory => "词库目录",
         Section.Appearance => "外观配置",
-        Section.Keyboard => "按键",
+        Section.Keyboard => "输入习惯",
         Section.Punctuation => "标点",
         Section.Account => "账户",
         _ => "帮助"

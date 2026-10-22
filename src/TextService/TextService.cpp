@@ -653,6 +653,7 @@ void TextService::ReportCaret(TfEditCookie ec, ITfContext* context, const char* 
     Protocol::Fields resp;
     Request({{"cmd", "caret"},
              {"reason", reason ? reason : "update"},
+             {"caps", (CurrentMods() & 16) ? "1" : "0"},
              {"cx", std::to_string(rc.left)},
              {"cy", std::to_string(rc.top)},
              {"cw", std::to_string(rc.right - rc.left)},

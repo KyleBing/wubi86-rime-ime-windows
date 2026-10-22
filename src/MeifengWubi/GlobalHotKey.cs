@@ -57,8 +57,8 @@ internal sealed class GlobalHotKey : IDisposable
     }
 }
 
-// 候选条显示期间，把「造词修饰键 + 0」登记成全局热键。
-// 前台软件（编辑器、浏览器）常常自己吃掉 Ctrl+Alt+0，文本服务收不到；登记之后按键会先到这里。
+// 候选条显示期间，把排序快捷键（默认 Ctrl+Alt+0，可在「输入习惯」页单独改）登记成全局热键。
+// 前台软件（编辑器、浏览器）常常自己吃掉这组键，文本服务收不到；登记之后按键会先到这里。
 // 候选条关掉就注销，避免平时占住这组键。收到 WM_HOTKEY 的线程允许把窗口拉到前台。
 internal sealed class RankHotKey : IDisposable
 {
@@ -77,6 +77,8 @@ internal sealed class RankHotKey : IDisposable
         _pressed = pressed;
         _source = new HwndSource(new HwndSourceParameters("MeifengWubiRankHotKey") { ParentWindow = new IntPtr(-3), Width = 0, Height = 0 });
         _source.AddHook(Hook);
+        // 排序键自己改了要重登记；造词键改成同一组时也要让出
+        RankPrefs.Changed += OnPrefsChanged;
         QuickAddPrefs.Changed += OnPrefsChanged;
     }
 
@@ -96,16 +98,19 @@ internal sealed class RankHotKey : IDisposable
         if (_numpad) Native.UnregisterHotKey(_source.Handle, IdNumpad);
         _main = false;
         _numpad = false;
-        if (!_armed || QuickAddPrefs.Modifiers == HotKeyModifiers.None) return;
-        var mods = (uint)QuickAddPrefs.Modifiers | Native.MOD_NOREPEAT;
-        _main = TryRegister(IdMain, (uint)Vk.D0, mods);
-        _numpad = TryRegister(IdNumpad, (uint)Vk.Numpad0, mods);
+        if (!_armed || RankPrefs.Modifiers == HotKeyModifiers.None) return;
+        var (vk, mods) = (RankPrefs.KeyCode, RankPrefs.Modifiers);
+        // 排序键与造词键撞在一起时不再登记，交给造词那个全局热键
+        if (mods == QuickAddPrefs.Modifiers && vk == QuickAddPrefs.KeyCode) return;
+        var nativeMods = (uint)mods | Native.MOD_NOREPEAT;
+        _main = TryRegister(IdMain, vk, nativeMods);
+        // 排序键是主键盘的 0 时，数字键盘的 0 也一起接管
+        if (vk == Vk.D0) _numpad = TryRegister(IdNumpad, (uint)Vk.Numpad0, nativeMods);
     }
 
-    // 造词键如果正好是 0，不要再登记一次
+    // 登记失败只记日志，不影响按键原本的路径
     private bool TryRegister(int id, uint vk, uint mods)
     {
-        if (vk == QuickAddPrefs.KeyCode) return false;
         var ok = Native.RegisterHotKey(_source.Handle, id, mods, vk);
         if (!ok) Meifeng.Core.Log.Write($"rank hotkey register failed vk={vk}");
         return ok;
@@ -124,6 +129,7 @@ internal sealed class RankHotKey : IDisposable
 
     public void Dispose()
     {
+        RankPrefs.Changed -= OnPrefsChanged;
         QuickAddPrefs.Changed -= OnPrefsChanged;
         if (_main) Native.UnregisterHotKey(_source.Handle, IdMain);
         if (_numpad) Native.UnregisterHotKey(_source.Handle, IdNumpad);

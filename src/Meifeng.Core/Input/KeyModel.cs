@@ -61,7 +61,8 @@ public interface IImeUi
 
     void ShowCandidates(CandidatePage page);
     void HideCandidates();
-    void ShowModeHint(bool asciiMode);
+    // 模式提示：大写锁定优先于中英
+    void ShowModeHint(bool asciiMode, bool capsLock);
     void HideModeHint();
 
     bool IsDeletePanelOpen { get; }

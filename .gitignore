@@ -6,3 +6,4 @@ out/
 *.suo
 third_party/librime/
 CMakeUserPresets.json
+.DS_Store

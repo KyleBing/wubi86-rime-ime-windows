@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using MeifengWubi.Interop;
 
 namespace MeifengWubi.Ui;
 
@@ -167,12 +168,100 @@ internal sealed class ColorSwatch : Border
     }
 }
 
-// 取色窗：色相 / 饱和度 / 亮度 / 不透明度滑块和十六进制输入，同一时间只开一个
+// 渐变条滑块：轨道本身就是颜色渐变，点击或拖动直接调整，值范围 0–1
+internal sealed class GradientSlider : Grid
+{
+    private const double TrackHeight = 14;
+    private const double ThumbSize = 16;
+    private readonly Border _track;
+    private readonly Ellipse _thumb;
+    private readonly Canvas _canvas = new() { IsHitTestVisible = false };
+    private double _value;
+    private bool _dragging;
+
+    public GradientSlider()
+    {
+        Height = 24;
+        // 透明背景也要能接收整个滑条的点击
+        Background = Brushes.Transparent;
+        _track = new Border
+        {
+            Height = TrackHeight,
+            CornerRadius = new CornerRadius(TrackHeight / 2),
+            BorderThickness = new Thickness(1),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _track.SetResourceReference(Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+        Children.Add(_track);
+        Children.Add(_canvas);
+        _thumb = new Ellipse
+        {
+            Width = ThumbSize,
+            Height = ThumbSize,
+            Fill = Brushes.White,
+            Stroke = new SolidColorBrush(Color.FromArgb(0x88, 0, 0, 0)),
+            StrokeThickness = 1.5,
+            IsHitTestVisible = false
+        };
+        _canvas.Children.Add(_thumb);
+        SizeChanged += (_, _) => PlaceThumb();
+        MouseLeftButtonDown += (_, e) =>
+        {
+            _dragging = true;
+            CaptureMouse();
+            SetFromPointer(e.GetPosition(this));
+            e.Handled = true;
+        };
+        MouseMove += (_, e) =>
+        {
+            if (_dragging) SetFromPointer(e.GetPosition(this));
+        };
+        MouseLeftButtonUp += (_, _) => EndDrag();
+        LostMouseCapture += (_, _) => _dragging = false;
+        PlaceThumb();
+    }
+
+    // 值变化时触发，参数为 0–1 的新值
+    public event Action<double>? ValueChanged;
+
+    public double Value => _value;
+
+    public void SetBrush(Brush brush) => _track.Background = brush;
+
+    public void SetValue(double value, bool notify)
+    {
+        _value = Math.Clamp(value, 0, 1);
+        PlaceThumb();
+        if (notify) ValueChanged?.Invoke(_value);
+    }
+
+    private void EndDrag()
+    {
+        if (!_dragging) return;
+        _dragging = false;
+        ReleaseMouseCapture();
+    }
+
+    private void SetFromPointer(Point p)
+    {
+        SetValue(p.X / Math.Max(ActualWidth, 1), notify: true);
+    }
+
+    // 滑块圆点跟随当前值，两端各让出半个圆点
+    private void PlaceThumb()
+    {
+        var usable = Math.Max(ActualWidth - ThumbSize, 1);
+        Canvas.SetLeft(_thumb, _value * usable);
+        Canvas.SetTop(_thumb, (ActualHeight - ThumbSize) / 2);
+    }
+}
+
+// 取色窗：色相 / 饱和度 / 亮度 / 不透明度用渐变条调整，可输入十六进制或直接从屏幕拾取，同一时间只开一个
 internal sealed class ColorPickerWindow : Window
 {
     private static ColorPickerWindow? _current;
 
-    private readonly Slider _h = Make(0, 360), _s = Make(0, 100), _v = Make(0, 100), _a = Make(0, 100);
+    private readonly GradientSlider _hue = new(), _sat = new(), _val = new(), _alpha = new();
     private readonly TextBox _hex = new() { Width = 96, FontFamily = new FontFamily("Cascadia Mono, Consolas") };
     private readonly Rectangle _preview = new() { Height = 28, RadiusX = 5, RadiusY = 5 };
     private ColorSwatch _owner;
@@ -208,22 +297,33 @@ internal sealed class ColorPickerWindow : Window
     {
         _owner = owner;
         _changed = changed;
-        Width = 320;
+        Width = 340;
         SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         var stack = new StackPanel { Margin = new Thickness(16) };
         stack.Children.Add(_preview);
-        stack.Children.Add(Row("色相", _h));
-        stack.Children.Add(Row("饱和度", _s));
-        stack.Children.Add(Row("亮度", _v));
-        stack.Children.Add(Row("不透明度", _a));
+        foreach (var slider in new[] { _hue, _sat, _val, _alpha })
+        {
+            slider.Width = 200;
+            slider.ValueChanged += _ => FromSliders();
+        }
+        _hue.SetBrush(HueBrush());
+        stack.Children.Add(Row("色相", _hue));
+        stack.Children.Add(Row("饱和度", _sat));
+        stack.Children.Add(Row("亮度", _val));
+        stack.Children.Add(Row("不透明度", _alpha));
+        // 屏幕取色：打开铺满屏幕的透明浮层，单击任意位置取色
+        var pickHint = UiKit.Label("移动鼠标预览，单击取色，Esc 或右键取消", 11, secondary: true, wrap: true);
+        pickHint.MaxWidth = 180;
+        var pickRow = UiKit.HStack(8, UiKit.Button("拾取屏幕颜色", PickFromScreen, small: false, tip: "从屏幕任意位置取色"), pickHint);
+        pickRow.Margin = new Thickness(0, 12, 0, 0);
+        stack.Children.Add(pickRow);
         var hexRow = UiKit.FormRow("十六进制", 56, _hex, UiKit.Label("#AARRGGBB 或 #RRGGBB", 11, secondary: true));
         hexRow.Margin = new Thickness(0, 10, 0, 0);
         stack.Children.Add(hexRow);
         Content = stack;
-        foreach (var s in new[] { _h, _s, _v, _a }) s.ValueChanged += (_, _) => FromSliders();
         _hex.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Enter) FromHex();
@@ -232,9 +332,7 @@ internal sealed class ColorPickerWindow : Window
         Load(color);
     }
 
-    private static Slider Make(double min, double max) => new() { Minimum = min, Maximum = max, Width = 200, VerticalAlignment = VerticalAlignment.Center };
-
-    private static StackPanel Row(string title, Slider slider)
+    private static StackPanel Row(string title, GradientSlider slider)
     {
         var row = UiKit.FormRow(title, 56, slider);
         row.Margin = new Thickness(0, 8, 0, 0);
@@ -245,19 +343,21 @@ internal sealed class ColorPickerWindow : Window
     {
         _syncing = true;
         var (h, s, v) = ToHsv(c);
-        _h.Value = h;
-        _s.Value = s * 100;
-        _v.Value = v * 100;
-        _a.Value = c.A / 255.0 * 100;
+        _hue.SetValue(h / 360.0, notify: false);
+        _sat.SetValue(s, notify: false);
+        _val.SetValue(v, notify: false);
+        _alpha.SetValue(c.A / 255.0, notify: false);
         _syncing = false;
+        RefreshBrushes();
         Show(c, notify: false);
     }
 
     private void FromSliders()
     {
         if (_syncing) return;
-        var c = FromHsv(_h.Value, _s.Value / 100, _v.Value / 100);
-        c.A = (byte)Math.Round(_a.Value / 100 * 255);
+        var c = FromHsv(_hue.Value * 360, _sat.Value, _val.Value);
+        c.A = (byte)Math.Round(_alpha.Value * 255);
+        RefreshBrushes();
         Show(c, notify: true);
     }
 
@@ -269,6 +369,44 @@ internal sealed class ColorPickerWindow : Window
         var c = Color.FromArgb((byte)(v >> 24), (byte)(v >> 16), (byte)(v >> 8), (byte)v);
         Load(c);
         _changed(c);
+    }
+
+    // 屏幕取色返回后直接套用到当前选中的颜色块
+    private void PickFromScreen()
+    {
+        var picker = new ScreenColorPickerWindow(ApplyPicked) { Owner = this };
+        picker.ShowDialog();
+        Activate();
+    }
+
+    private void ApplyPicked(Color c)
+    {
+        Load(c);
+        _changed(c);
+    }
+
+    // 三条轨道随当前色变化：饱和度、亮度、不透明度都用真实渐变预览
+    private void RefreshBrushes()
+    {
+        var h = _hue.Value * 360;
+        var s = _sat.Value;
+        var v = _val.Value;
+        _sat.SetBrush(Gradient(FromHsv(h, 0, v), FromHsv(h, 1, v)));
+        _val.SetBrush(Gradient(Colors.Black, FromHsv(h, s, 1)));
+        var opaque = FromHsv(h, s, v);
+        _alpha.SetBrush(Gradient(Color.FromArgb(0, opaque.R, opaque.G, opaque.B), opaque));
+    }
+
+    private static LinearGradientBrush Gradient(Color from, Color to) =>
+        new(from, to, new Point(0, 0.5), new Point(1, 0.5));
+
+    // 色相轨道：红 → 黄 → 绿 → 青 → 蓝 → 品红 → 红
+    private static Brush HueBrush()
+    {
+        var brush = new LinearGradientBrush { StartPoint = new Point(0, 0.5), EndPoint = new Point(1, 0.5) };
+        for (var i = 0; i <= 6; i++) brush.GradientStops.Add(new GradientStop(FromHsv(i * 60, 1, 1), i / 6.0));
+        brush.Freeze();
+        return brush;
     }
 
     private void Show(Color c, bool notify)
@@ -311,5 +449,108 @@ internal sealed class ColorPickerWindow : Window
         };
         static byte B(double t) => (byte)Math.Round(Math.Clamp(t, 0, 1) * 255);
         return Color.FromRgb(B(r + m), B(g + m), B(b + m));
+    }
+}
+
+// 屏幕取色浮层：铺满所有显示器，实时预览光标下的颜色，单击取色；Esc 或右键取消
+internal sealed class ScreenColorPickerWindow : Window
+{
+    private readonly Action<Color> _picked;
+    private readonly Border _panel;
+    private readonly Rectangle _swatch = new() { Width = 32, Height = 32, RadiusX = 4, RadiusY = 4 };
+    private readonly TextBlock _hex = new()
+    {
+        FontSize = 11,
+        FontFamily = new FontFamily("Cascadia Mono, Consolas"),
+        Foreground = Brushes.White,
+        VerticalAlignment = VerticalAlignment.Center
+    };
+    private Color _current;
+    private bool _done;
+
+    public ScreenColorPickerWindow(Action<Color> picked)
+    {
+        _picked = picked;
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        AllowsTransparency = true;
+        Background = Brushes.Transparent;
+        Topmost = true;
+        ShowInTaskbar = false;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        // 覆盖整个虚拟桌面，多显示器也只需要点一下
+        Left = SystemParameters.VirtualScreenLeft;
+        Top = SystemParameters.VirtualScreenTop;
+        Width = SystemParameters.VirtualScreenWidth;
+        Height = SystemParameters.VirtualScreenHeight;
+        Cursor = Cursors.Cross;
+
+        _panel = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0xD8, 0x20, 0x20, 0x20)),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(6),
+            IsHitTestVisible = false,
+            Child = UiKit.HStack(8, _swatch, _hex)
+        };
+        var canvas = new Canvas { Background = Brushes.Transparent };
+        canvas.Children.Add(_panel);
+        Content = canvas;
+        MouseMove += (_, e) => UpdateAt(e.GetPosition(this));
+        MouseLeftButtonDown += (_, e) =>
+        {
+            Pick();
+            e.Handled = true;
+        };
+        MouseRightButtonDown += (_, e) =>
+        {
+            Cancel();
+            e.Handled = true;
+        };
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key != Key.Escape) return;
+            Cancel();
+            e.Handled = true;
+        };
+        Loaded += (_, _) =>
+        {
+            Activate();
+            Focus();
+            UpdateAt(Mouse.GetPosition(this));
+        };
+    }
+
+    // 读取光标下的屏幕像素并更新跟随预览
+    private void UpdateAt(Point p)
+    {
+        if (!Native.GetCursorPos(out var pt)) return;
+        if (Native.ScreenColorAt(pt.X, pt.Y) is not { } c) return;
+        _current = c;
+        _swatch.Fill = new SolidColorBrush(c);
+        _hex.Text = $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
+        _panel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        var size = _panel.DesiredSize;
+        var left = p.X + 18;
+        var top = p.Y + 18;
+        // 贴近屏幕右 / 下边缘时翻到光标另一侧
+        if (left + size.Width > ActualWidth) left = p.X - size.Width - 18;
+        if (top + size.Height > ActualHeight) top = p.Y - size.Height - 18;
+        Canvas.SetLeft(_panel, Math.Max(0, left));
+        Canvas.SetTop(_panel, Math.Max(0, top));
+    }
+
+    private void Pick()
+    {
+        if (_done) return;
+        _done = true;
+        _picked(_current);
+        Close();
+    }
+
+    private void Cancel()
+    {
+        _done = true;
+        Close();
     }
 }

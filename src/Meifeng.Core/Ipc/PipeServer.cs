@@ -153,7 +153,8 @@ public sealed class PipeServer : IDisposable
                 AppendOutput(resp, req.GetValueOrDefault("on") == "1" ? _controller.Focus(client) : _controller.Blur(client));
                 break;
             case "caret":
-                _controller.CaretReported(client, req.GetValueOrDefault("reason") == "focus");
+                // caps 由文本服务按当前键盘状态带上来，模式提示据此优先显示「大写」
+                _controller.CaretReported(client, req.GetValueOrDefault("reason") == "focus", req.GetValueOrDefault("caps") == "1");
                 break;
             case "fetch":
                 if (_controller.FetchPending(client) is { } pending) AppendOutput(resp, pending);

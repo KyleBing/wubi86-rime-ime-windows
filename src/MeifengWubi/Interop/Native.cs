@@ -142,6 +142,30 @@ internal static partial class Native
     [DllImport("user32.dll")]
     public static extern int ReleaseDC(nint hwnd, nint hdc);
 
+    // 屏幕取色用：光标物理像素坐标 + 桌面像素颜色（COLORREF）
+    [DllImport("user32.dll")]
+    public static extern bool GetCursorPos(out POINT pt);
+
+    [DllImport("gdi32.dll")]
+    public static extern uint GetPixel(nint hdc, int x, int y);
+
+    // 读取屏幕某点的颜色；取不到时返回 null。屏幕坐标是物理像素
+    public static System.Windows.Media.Color? ScreenColorAt(int x, int y)
+    {
+        var dc = GetDC(0);
+        if (dc == 0) return null;
+        try
+        {
+            var v = GetPixel(dc, x, y);
+            if (v == 0xFFFFFFFF) return null;
+            return System.Windows.Media.Color.FromRgb((byte)(v & 0xFF), (byte)((v >> 8) & 0xFF), (byte)((v >> 16) & 0xFF));
+        }
+        finally
+        {
+            ReleaseDC(0, dc);
+        }
+    }
+
     [DllImport("gdi32.dll")]
     public static extern nint CreateCompatibleDC(nint hdc);
 

@@ -24,13 +24,17 @@ internal sealed class ModeHintWindow : IDisposable
         _timer.Tick += (_, _) => Animate();
     }
 
+    // 胶囊文字：大写锁定优先于中英，锁定时一直显示「大写」
+    private static string Label(bool asciiMode, bool capsLock) =>
+        capsLock ? "大写" : asciiMode ? "英文" : "中文";
+
     // 在光标旁显示当前模式：0.12 秒淡入，约 0.9 秒后 0.28 秒淡出
-    public void Show(bool asciiMode, Native.RECT caret)
+    public void Show(bool asciiMode, bool capsLock, Native.RECT caret)
     {
         var (work, scale) = Native.MonitorAt(caret.Left, caret.Bottom);
         var skin = AppearancePrefs.Skin;
         var colors = skin.ColorsFor(SkinMedia.SystemIsDark);
-        var root = BuildChrome(asciiMode ? "英文" : "中文", colors, out var size);
+        var root = BuildChrome(Label(asciiMode, capsLock), colors, out var size);
         var bitmap = CandidateBarRenderer.Rasterize(root, size, scale);
 
         var outset = ShadowOutset * scale;

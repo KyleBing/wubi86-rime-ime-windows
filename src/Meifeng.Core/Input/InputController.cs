@@ -17,6 +17,8 @@ public sealed class InputController
     private bool _asciiMode;
     private bool _shiftIsSticky;
     private bool _sawOtherKeyWithShift;
+    // 大写锁定；模式提示里大写优先于中英
+    private bool _capsLock;
 
     // 预置候选（date / time）由输入法自行分页，记录当前页与所属编码
     private int _specialPage;
@@ -162,6 +164,8 @@ public sealed class InputController
         {
             if (_activeClient != client) SwitchClient(client);
             _out = new ImeOutput { Preedit = _marked };
+            // 大写锁定变化：按中英提示同样的样式显示，锁定时优先显示「大写」
+            if (!key.IsUp) TrackCapsLock(key);
             var passToClient = false;
             var eaten = HandleKeyCore(key, ref passToClient);
             // 按键最终交给当前软件时记下，用来判断下一次标点是不是紧跟数字
@@ -209,21 +213,22 @@ public sealed class InputController
                 ClearMarkedText();
             }
             _out.WantCaret = true;
-            _ui.ShowModeHint(_asciiMode);
+            _ui.ShowModeHint(_asciiMode, _capsLock);
             AsciiModeChanged?.Invoke(_asciiMode);
             QueueOut(_activeClient);
         }
     }
 
-    // 文本服务回报了光标位置；reasonFocus 为聚焦后的首次回报
-    public void CaretReported(long client, bool reasonFocus)
+    // 文本服务回报了光标位置；reasonFocus 为聚焦后的首次回报，capsLock 是回报时的大小写锁定状态
+    public void CaretReported(long client, bool reasonFocus, bool capsLock)
     {
         lock (_lock)
         {
             if (client != _activeClient) return;
+            _capsLock = capsLock;
             if (reasonFocus && AppearancePrefs.ShowCaretModeHint && _marked.Length == 0)
             {
-                _ui.ShowModeHint(_asciiMode);
+                _ui.ShowModeHint(_asciiMode, _capsLock);
             }
         }
     }
@@ -262,7 +267,7 @@ public sealed class InputController
 
         // 候选出现时：造词那组修饰键 + 数字，删除对应候选
         if (HandleDeleteCandidateShortcut(key)) return true;
-        // 同一组修饰键 + 0：拖动排序当前候选。前台软件吃掉这组键时，改由候选条期间的全局热键调用 OpenRankFromHotKey
+        // 排序快捷键（默认 Ctrl+Alt+0，可在「输入习惯」页单独改）：拖动排序当前候选。前台软件吃掉这组键时，改由候选条期间的全局热键调用 OpenRankFromHotKey
         if (HandleRankCandidatesShortcut(key)) return true;
 
         // Win 组合键交给系统
@@ -272,6 +277,20 @@ public sealed class InputController
         {
             passToClient = true;
             return false;
+        }
+
+        // 回车清码：编码中按回车只清掉编码，不把字母上屏。放在标点之前，避免被 Rime 当作上屏处理
+        if (BehaviorPrefs.EnterClearsCode && key.Vk == Vk.Return &&
+            !key.Has(KeyMods.Control) && !key.Has(KeyMods.Alt) && !key.Has(KeyMods.Win) &&
+            _engine.Snapshot(peekOnly: true)?.IsComposing == true)
+        {
+            _engine.ClearComposition();
+            ClearPunctuation();
+            _ui.HideCandidates();
+            ClearMarkedText();
+            _specialPreedit = "";
+            _specialPage = 0;
+            return true;
         }
 
         // 标点在输入法里处理。编码过程中仍交给 Rime，避免打断翻页和选词
@@ -301,10 +320,23 @@ public sealed class InputController
             return false;
         }
         var handled = _engine.ProcessKey(mapped.Value.KeyCode, mapped.Value.Modifiers);
-        if (handled) return ConsumeRimeUpdate();
+        if (handled)
+        {
+            ApplyEmptyCodeClear();
+            return ConsumeRimeUpdate();
+        }
         if (_engine.Snapshot(peekOnly: true)?.IsComposing == true) return true;
         passToClient = true;
         return false;
+    }
+
+    // 按键带回的大写锁定状态变了就更新，并像中英切换一样弹一下模式提示
+    private void TrackCapsLock(KeyEvent key)
+    {
+        var caps = key.Has(KeyMods.CapsLock);
+        if (caps == _capsLock) return;
+        _capsLock = caps;
+        _ui.ShowModeHint(_asciiMode, _capsLock);
     }
 
     // 单按 Shift 抬起时切换中英
@@ -326,7 +358,7 @@ public sealed class InputController
                 ClearMarkedText();
             }
             _out.WantCaret = true;
-            _ui.ShowModeHint(_asciiMode);
+            _ui.ShowModeHint(_asciiMode, _capsLock);
             AsciiModeChanged?.Invoke(_asciiMode);
             _shiftIsSticky = false;
             return true;
@@ -578,6 +610,37 @@ public sealed class InputController
         _specialPage = 0;
     }
 
+    // 空码清空：四码打完仍没有候选时清空编码
+    private void ApplyEmptyCodeClear()
+    {
+        if (!BehaviorPrefs.EmptyCodeClear) return;
+        var snap = _engine.Snapshot(peekOnly: true);
+        if (snap is not { IsComposing: true } || snap.Preedit is not { } preedit) return;
+        if (!IsFullFourCode(CodeOf(preedit)) || snap.Candidates.Count > 0) return;
+        if (DateTimeCandidates.CandidatesFor(preedit) != null) return;
+        _engine.ClearComposition();
+    }
+
+    // 当前实际输入的编码。RawInput 在反查时仍带 z，Preedit 可能已被格式化，以 RawInput 为准
+    private string CodeOf(string preedit)
+    {
+        var typed = _engine.RawInput();
+        return string.IsNullOrEmpty(typed) ? preedit : typed;
+    }
+
+    private static bool IsLetter(char c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+
+    // 恰好四码字母且不以 z 开头（z 是反查前缀）
+    private static bool IsFullFourCode(string code)
+    {
+        if (code.Length != 4 || code[0] is 'z' or 'Z') return false;
+        foreach (var c in code)
+        {
+            if (!IsLetter(c)) return false;
+        }
+        return true;
+    }
+
     private bool ConsumeRimeUpdate()
     {
         var snap = _engine.Snapshot();
@@ -660,14 +723,21 @@ public sealed class InputController
         return null;
     }
 
-    // 按键的修饰键是否正好等于造词快捷键的修饰键
-    private static bool MatchesQuickAddModifiers(KeyEvent key)
+    // 按键上的修饰键
+    private static HotKeyModifiers ModifiersOf(KeyEvent key)
     {
         var m = HotKeyModifiers.None;
         if (key.Has(KeyMods.Control)) m |= HotKeyModifiers.Control;
         if (key.Has(KeyMods.Alt)) m |= HotKeyModifiers.Alt;
         if (key.Has(KeyMods.Shift)) m |= HotKeyModifiers.Shift;
         if (key.Has(KeyMods.Win)) m |= HotKeyModifiers.Win;
+        return m;
+    }
+
+    // 按键的修饰键是否正好等于造词快捷键的修饰键
+    private static bool MatchesQuickAddModifiers(KeyEvent key)
+    {
+        var m = ModifiersOf(key);
         return m != HotKeyModifiers.None && m == QuickAddPrefs.Modifiers;
     }
 
@@ -693,11 +763,10 @@ public sealed class InputController
         return true;
     }
 
-    // 造词修饰键 + 0：弹出当前候选的排序窗口
+    // 排序快捷键（默认 Ctrl+Alt+0，可在设置里单独改）：弹出当前候选的排序窗口
     private bool HandleRankCandidatesShortcut(KeyEvent key)
     {
-        if (!MatchesQuickAddModifiers(key)) return false;
-        if (key.Vk != Vk.D0 && key.Vk != Vk.Numpad0) return false;
+        if (!RankPrefs.Matches((uint)key.Vk, ModifiersOf(key))) return false;
         var show = PrepareRankShow();
         show?.Invoke();
         return show != null;

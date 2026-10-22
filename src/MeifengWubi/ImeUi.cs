@@ -74,11 +74,11 @@ internal sealed class ImeUi : IImeUi, IDisposable
         CandidatePopupChanged?.Invoke(false);
     });
 
-    public void ShowModeHint(bool asciiMode) => Post(() =>
+    public void ShowModeHint(bool asciiMode, bool capsLock) => Post(() =>
     {
         if (_candidates?.Visible == true) return;
         if (_caret.Right <= _caret.Left && _caret.Bottom <= _caret.Top) return;
-        _modeHint?.Show(asciiMode, _caret);
+        _modeHint?.Show(asciiMode, capsLock, _caret);
     });
 
     public void HideModeHint() => Post(() => _modeHint?.Hide());

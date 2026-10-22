@@ -1,0 +1,131 @@
+# 打 Release 安装包并发布到本仓库的 Releases。
+# 推送 v1.0.2 这类标签时自动编译服务进程、TSF（x64 + x86）和 Inno Setup 安装包；
+# 手动运行只打包，产物留在 Actions 里。
+#
+# 附件名固定为 MeifengWubi-Windows-setup.exe，不带版本号，说明站因此可以一直用
+#   https://github.com/KyleBing/wubi86-rime-windows-ime/releases/latest/download/MeifengWubi-Windows-setup.exe
+# 这条链接，发新版本只换附件，不用改文档。版本号看 Release 标题。
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # 固定附件名：releases/latest/download/<这个名字> 是稳定地址
+  ASSET_NAME: MeifengWubi-Windows-setup.exe
+
+jobs:
+  windows:
+    name: 打包安装程序
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # build.ps1 找不到 iscc 时会跳过安装包，这里先装好
+      - name: 安装 Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      # 版本号以 csproj 的 Version 为准，发版前先改版本再打标签
+      - name: 读取版本
+        id: version
+        shell: pwsh
+        run: |
+          [xml]$csproj = Get-Content src/MeifengWubi/MeifengWubi.csproj
+          $version = @($csproj.Project.PropertyGroup.Version) | Where-Object { $_ } | Select-Object -First 1
+          if (-not $version) { throw "csproj 里读不到 Version" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "版本 $version，标签 $env:GITHUB_REF_NAME"
+
+      - name: 校验标签与版本一致
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $expect = "v${{ steps.version.outputs.version }}"
+          if ($env:GITHUB_REF_NAME -ne $expect) {
+            throw "标签 $env:GITHUB_REF_NAME 与 csproj 里的 $expect 不一致，先改版本号再打标签"
+          }
+
+      - name: 单元测试
+        shell: pwsh
+        run: dotnet test tests/Meifeng.Core.Tests/Meifeng.Core.Tests.csproj --nologo -v q
+
+      # 会先下载 librime 预编译包，再编译服务进程、两份 TSF DLL 和安装包
+      - name: 编译并打包
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: 收集安装包
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $setup = "out/MeifengWubi-$version-setup.exe"
+          if (-not (Test-Path $setup)) { throw "找不到安装包 $setup" }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          # 固定附件名，避免各端下载链接带版本号
+          Copy-Item $setup "dist/$env:ASSET_NAME"
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: MeifengWubi-${{ steps.version.outputs.version }}-windows
+          path: dist/*.exe
+          if-no-files-found: error
+
+      # 更新说明直接取 CHANGELOG.md 里对应版本的那一段
+      - name: 生成更新说明
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $lines = Get-Content CHANGELOG.md
+          $head = "## v$version"
+          $body = @()
+          $show = $false
+          foreach ($line in $lines) {
+            if ($line.StartsWith($head)) { $show = $true; continue }
+            if ($line.StartsWith("## v")) { $show = $false }
+            if ($show) { $body += $line }
+          }
+          $text = ($body -join "`n").Trim()
+          if (-not $text) { $text = "v$version" }
+          Set-Content -Path notes.md -Value $text -Encoding utf8
+          Get-Content notes.md
+
+      - name: 发布 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 不因非零退出码中断，下面按 $LASTEXITCODE 判断已有 / 新建
+          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $tag = $env:GITHUB_REF_NAME
+          $title = "v${{ steps.version.outputs.version }}"
+          $asset = (Get-Item "dist/$env:ASSET_NAME").FullName
+          gh release view $tag --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --title $title --notes-file notes.md --latest
+            gh release upload $tag $asset --clobber
+          } else {
+            gh release create $tag $asset --title $title --notes-file notes.md --latest
+          }
+          if ($LASTEXITCODE -ne 0) { throw "发布 Release 失败" }
+          Write-Host "已发布：https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$tag"
+          Write-Host "固定下载：https://github.com/$env:GITHUB_REPOSITORY/releases/latest/download/$env:ASSET_NAME"
