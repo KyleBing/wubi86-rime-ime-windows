@@ -82,13 +82,6 @@ jobs:
           Copy-Item $setup "dist/$env:ASSET_NAME"
           Get-ChildItem dist | Format-Table Name, Length
 
-      - name: 上传构建产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: MeifengWubi-${{ steps.version.outputs.version }}-windows
-          path: dist/*.exe
-          if-no-files-found: error
-
       # 更新说明直接取 CHANGELOG.md 里对应版本的那一段
       - name: 生成更新说明
         shell: pwsh
