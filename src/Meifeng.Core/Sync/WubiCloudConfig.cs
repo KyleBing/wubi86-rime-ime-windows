@@ -17,7 +17,7 @@ public sealed record WubiCloudUserInfo(
 
 public static class WubiCloudConfig
 {
-    public const string DefaultBaseUrl = "https://kylebing.cn/portal/";
+    public const string DefaultBaseUrl = "https://kylebing.cn/wubi/";
     public const string SyncDictFileName = "wubi86_jidian_user.dict.yaml";
     public const string ExtraDictFileName = "wubi86_jidian_extra.dict.yaml";
     public const int SyncMaxContentLength = 40_000;
@@ -41,6 +41,8 @@ public static class WubiCloudConfig
         var b = (raw ?? "").Trim();
         if (b.Length == 0) b = DefaultBaseUrl;
         if (b.StartsWith("http://kylebing.cn/", StringComparison.Ordinal)) b = "https://" + b["http://".Length..];
+        // 旧版默认指向 portal-go，拆分后自动切到五笔独立服务
+        if (b == "https://kylebing.cn/portal/" || b == "https://kylebing.cn/portal") b = DefaultBaseUrl;
         if (!b.EndsWith('/')) b += "/";
         return b;
     }

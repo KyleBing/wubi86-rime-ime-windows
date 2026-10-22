@@ -47,7 +47,7 @@ public static class WubiCloudApi
     public static async Task<DictMeta?> FetchMetaAsync(string title = WubiCloudConfig.SyncDictFileName)
     {
         var user = RequireUser();
-        var url = MakeUrl(WubiCloudConfig.BaseUrl, "wubi/dict/meta") + "?title=" + Uri.EscapeDataString(title);
+        var url = MakeUrl(WubiCloudConfig.BaseUrl, "dict/meta") + "?title=" + Uri.EscapeDataString(title);
         var data = await SendAsync(HttpMethod.Get, url, null, user);
         if (!Success(data))
         {
@@ -65,7 +65,7 @@ public static class WubiCloudApi
     public static async Task<PullResult?> PullDictAsync(string title = WubiCloudConfig.SyncDictFileName)
     {
         var user = RequireUser();
-        var url = MakeUrl(WubiCloudConfig.BaseUrl, "wubi/dict/pull") + "?title=" + Uri.EscapeDataString(title);
+        var url = MakeUrl(WubiCloudConfig.BaseUrl, "dict/pull") + "?title=" + Uri.EscapeDataString(title);
         var data = await SendAsync(HttpMethod.Get, url, null, user);
         if (!Success(data))
         {
@@ -94,7 +94,7 @@ public static class WubiCloudApi
             ["wordCount"] = wordCount
         };
         if (baseRevision.HasValue) body["baseRevision"] = baseRevision.Value;
-        var data = await SendAsync(HttpMethod.Put, MakeUrl(WubiCloudConfig.BaseUrl, "wubi/dict/push"), body, user);
+        var data = await SendAsync(HttpMethod.Put, MakeUrl(WubiCloudConfig.BaseUrl, "dict/push"), body, user);
         var payload = data["data"] as JsonObject;
         if (payload?["conflict"] is JsonValue c && c.TryGetValue<bool>(out var conflict) && conflict
             || (Str(data["message"]) ?? "").Contains("版本已变化"))
@@ -110,7 +110,7 @@ public static class WubiCloudApi
     public static async Task<List<ExtraWordItem>> PullExtraDictAsync()
     {
         var user = RequireUser();
-        var data = await SendAsync(HttpMethod.Post, MakeUrl(WubiCloudConfig.BaseUrl, "wubi/word/export-extra"), new JsonObject(), user);
+        var data = await SendAsync(HttpMethod.Post, MakeUrl(WubiCloudConfig.BaseUrl, "word/export-extra"), new JsonObject(), user);
         if (!Success(data) || data["data"] is not JsonArray list)
         {
             throw new WubiCloudException(Str(data["message"]) ?? "拉取扩展词库失败");
