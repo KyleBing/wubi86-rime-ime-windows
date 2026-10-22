@@ -17,7 +17,7 @@ public sealed record WubiCloudUserInfo(
 
 public static class WubiCloudConfig
 {
-    public const string DefaultBaseUrl = "https://kylebing.cn/wubi/";
+    public const string DefaultBaseUrl = "https://kylebing.cn/wubi/portal/";
     public const string SyncDictFileName = "wubi86_jidian_user.dict.yaml";
     public const string ExtraDictFileName = "wubi86_jidian_extra.dict.yaml";
     public const int SyncMaxContentLength = 40_000;

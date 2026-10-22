@@ -35,7 +35,7 @@ pwsh ./build.ps1 -Register  # 额外在本机注册文本服务，便于调试�
 
 ## 打包与发布
 
-推送 `v1.0.2` 这类标签时，`.github/workflows/release.yml` 会在 Windows runner 上装好 .NET SDK 与 Inno Setup，跑 `build.ps1` 打出安装包，再发布到**本仓库**的 Releases，更新说明取自 `CHANGELOG.md` 对应版本。发版前先把 `src/MeifengWubi/MeifengWubi.csproj` 里的 `<Version>` 改好并提交；标签与版本不一致时工作流会直接失败。
+推送 `v1.1.0` 这类标签时，`.github/workflows/release.yml` 会在 Windows runner 上装好 .NET SDK 与 Inno Setup，跑 `build.ps1` 打出安装包，再发布到**本仓库**的 Releases，更新说明取自 `CHANGELOG.md` 对应版本。发版前先把 `src/MeifengWubi/MeifengWubi.csproj` 里的 `<Version>` 改好并提交；标签与版本不一致时工作流会直接失败。
 
 附件名固定为 `MeifengWubi-Windows-setup.exe`，所以说明站只用一条不变的地址：
 
@@ -46,6 +46,17 @@ https://github.com/KyleBing/wubi86-rime-ime-windows/releases/latest/download/Mei
 注意：仓库必须是 public，未登录的人才能下载 Release 附件。私有仓库的附件只有登录且有权限的账号能取。
 
 安装后到「设置 › 时间和语言 › 语言和区域 › 中文（简体） › 键盘」添加「玫枫五笔」。
+
+## 云端同步
+
+「设置 › 同步」登录门户账号，和 macOS、iOS、码表助手共用。默认请求地址是：
+
+```
+https://kylebing.cn/wubi/portal/
+```
+
+`https://kylebing.cn/wubi/` 是说明站，接口统一在 `/wubi/portal/` 下，旧地址不再兼容。
+注册地址是 `https://kylebing.cn/wubi/manager/#/register`（管理后台 `/wubi/manager/`）。
 
 ## 程序更新
 

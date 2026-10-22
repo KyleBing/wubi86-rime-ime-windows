@@ -12,7 +12,7 @@
     <RootNamespace>MeifengWubi</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\Resources\Brand\AppIcon.ico</ApplicationIcon>
-    <Version>1.0.2</Version>
+    <Version>1.1.0</Version>
     <Product>玫枫五笔</Product>
     <Company>KyleBing</Company>
     <Copyright>Copyright © KyleBing</Copyright>

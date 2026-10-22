@@ -1,3 +1,7 @@
+## v1.1.0 `2026-10-22`
+- 云端同步默认地址改为 `https://kylebing.cn/wubi/portal/`，与新的接口前缀一致
+- 文档站占用 `https://kylebing.cn/wubi/`，账号注册入口改为 `https://kylebing.cn/wubi/manager/#/register`
+
 ## v1.0.2 `2026-10-22`
 - 光标旁的模式提示增加「大写」：开启大写锁定时优先显示，样式与中英提示一致
 - 修复「每页候选数」改了不生效。写入 `default.custom.yaml` 时只更新候选数与按键段，方案列表、标点、识别器和自己的绑定原样保留
