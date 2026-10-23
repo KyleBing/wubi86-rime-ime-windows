@@ -11,6 +11,8 @@ namespace MeifengWubi.Settings;
 internal sealed class AppearancePage : Grid, IDisposable
 {
     private static readonly string[] Sample = ["五", "吾", "伍", "捂", "梧", "妩", "坞", "晤", "勿"];
+    // 只给部分词条备注，与真实候选一致——没有备注的不占位。
+    private static readonly string[] SampleComments = ["数字", "", "姓氏", "", "", "妩媚", "", "会晤", ""];
     private static readonly string[] FullCodes = ["gghg", "ggg", "wgg", "rgkg", "sgkg", "vntg", "fggy", "jgkg", "qre"];
     private static readonly string[] RestCodes = ["hg", "g", "gg", "kg", "g", "tg", "gy", "kg", "re"];
 
@@ -116,7 +118,10 @@ internal sealed class AppearancePage : Grid, IDisposable
         }
         var codes = (AppearancePrefs.CodeDetail == CodeDetail.Full ? FullCodes : RestCodes).Take(pageSize).ToList();
         var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        var result = CandidateBarRenderer.Build(skin, colors, Sample.Take(pageSize).ToList(), codes, options, true, dpi);
+        var comments = AppearancePrefs.ShowCommentInPanel
+            ? SampleComments.Take(pageSize).ToList()
+            : [];
+        var result = CandidateBarRenderer.Build(skin, colors, Sample.Take(pageSize).ToList(), codes, comments, options, true, dpi);
         result.Root.HorizontalAlignment = HorizontalAlignment.Center;
         result.Root.VerticalAlignment = VerticalAlignment.Center;
         result.Root.Width = result.Size.Width;

@@ -91,12 +91,15 @@ public sealed record SkinColors(
     [property: JsonPropertyName("highlightText")] RGBAColor HighlightText,
     [property: JsonPropertyName("highlightIndexText")] RGBAColor HighlightIndexText,
     [property: JsonPropertyName("codeText")] RGBAColor CodeText,
-    [property: JsonPropertyName("highlightCodeText")] RGBAColor HighlightCodeText)
+    [property: JsonPropertyName("highlightCodeText")] RGBAColor HighlightCodeText,
+    [property: JsonPropertyName("commentText")] RGBAColor CommentText,
+    [property: JsonPropertyName("highlightCommentText")] RGBAColor HighlightCommentText)
 {
     public SkinColors Normalized() => new(
         Background.Normalized(), CandidateText.Normalized(), IndexText.Normalized(), Border.Normalized(),
         Shadow.Normalized(), HighlightBackground.Normalized(), HighlightText.Normalized(),
-        HighlightIndexText.Normalized(), CodeText.Normalized(), HighlightCodeText.Normalized());
+        HighlightIndexText.Normalized(), CodeText.Normalized(), HighlightCodeText.Normalized(),
+        CommentText.Normalized(), HighlightCommentText.Normalized());
 }
 
 // 可复制分享的候选栏皮肤。尺寸配置共用，颜色按浅色和深色分别保存。JSON 与 macOS 版互通
@@ -127,6 +130,9 @@ public sealed record CandidateSkin
     [JsonPropertyName("indexWeight")] public SkinFontWeight IndexWeight { get; init; } = SkinFontWeight.Regular;
     // 词条后面的五笔编码字号
     [JsonPropertyName("codeFontSize")] public double CodeFontSize { get; init; }
+    // 候选备注（Rime comment，缺失时用码表备注）字号与粗细
+    [JsonPropertyName("commentFontSize")] public double CommentFontSize { get; init; }
+    [JsonPropertyName("commentWeight")] public SkinFontWeight CommentWeight { get; init; } = SkinFontWeight.Regular;
     [JsonPropertyName("borderWidth")] public double BorderWidth { get; init; }
     [JsonPropertyName("shadowEnabled")] public bool ShadowEnabled { get; init; }
     [JsonPropertyName("shadowRadius")] public double ShadowRadius { get; init; }
@@ -155,7 +161,9 @@ public sealed record CandidateSkin
         new RGBAColor(1, 1, 1),
         new RGBAColor(1, 1, 1, 0.78),
         RGBAColor.Gray(0.614888698630137),
-        RGBAColor.Gray(0.3245130565068493));
+        RGBAColor.Gray(0.3245130565068493),
+        new RGBAColor(0.52, 0.52, 0.55),
+        new RGBAColor(1, 1, 1, 0.9));
 
     private static readonly SkinColors DefaultDark = new(
         new RGBAColor(0.13, 0.13, 0.15, 0.94),
@@ -167,7 +175,9 @@ public sealed record CandidateSkin
         new RGBAColor(1, 1, 1),
         new RGBAColor(1, 1, 1, 0.78),
         RGBAColor.Gray(0.7359364297945206),
-        RGBAColor.Gray(0.7462810359589042));
+        RGBAColor.Gray(0.7462810359589042),
+        new RGBAColor(0.70, 0.70, 0.73),
+        new RGBAColor(1, 1, 1, 0.9));
 
     // 未保存皮肤时用内置简约黑白，恢复默认和设置页的当前主题描边也按这一套
     public static CandidateSkin Default => MonochromePreset;
@@ -195,6 +205,8 @@ public sealed record CandidateSkin
         IndexFontSize = 11,
         IndexWeight = SkinFontWeight.Light,
         CodeFontSize = 12,
+        CommentFontSize = 11,
+        CommentWeight = SkinFontWeight.Regular,
         BorderWidth = 0.5,
         ShadowEnabled = true,
         ShadowRadius = 4,
@@ -230,7 +242,9 @@ public sealed record CandidateSkin
                     new RGBAColor(1, 1, 1),
                     new RGBAColor(1, 1, 1, 0.78),
                     RGBAColor.Gray(0.614888698630137),
-                    new RGBAColor(1, 1, 1)),
+                    new RGBAColor(1, 1, 1),
+                    new RGBAColor(0.55, 0.55, 0.58),
+                    new RGBAColor(1, 1, 1, 0.92)),
                 Dark = new SkinColors(
                     new RGBAColor(0.1355506262357012, 0.1355506262357012, 0.138404323630137, 0.94),
                     new RGBAColor(0.95, 0.95, 0.97),
@@ -241,7 +255,9 @@ public sealed record CandidateSkin
                     new RGBAColor(1, 1, 1),
                     new RGBAColor(1, 1, 1, 0.78),
                     RGBAColor.Gray(0.7359364297945206),
-                    new RGBAColor(1, 1, 1))
+                    new RGBAColor(1, 1, 1),
+                    new RGBAColor(0.70, 0.70, 0.73),
+                    new RGBAColor(1, 1, 1, 0.92))
             };
         }
     }
@@ -262,7 +278,9 @@ public sealed record CandidateSkin
             new RGBAColor(0, 0, 0),
             new RGBAColor(0.243, 0.247, 0.247, 0.695),
             RGBAColor.Gray(0.614888698630137),
-            RGBAColor.Gray(0.3245130565068493)),
+            RGBAColor.Gray(0.3245130565068493),
+            new RGBAColor(0.55, 0.55, 0.58),
+            new RGBAColor(0.38, 0.38, 0.41)),
         Dark = new SkinColors(
             RGBAColor.Gray(0.13736087328767124, 0.94),
             new RGBAColor(0.8973309957986161, 0.8973309957986161, 0.9162221746575343),
@@ -273,7 +291,9 @@ public sealed record CandidateSkin
             new RGBAColor(1, 1, 1),
             new RGBAColor(1, 1, 1, 0.68),
             RGBAColor.Gray(0.7359364297945206),
-            RGBAColor.Gray(0.7462810359589042))
+            RGBAColor.Gray(0.7462810359589042),
+            new RGBAColor(0.70, 0.70, 0.73),
+            new RGBAColor(1, 1, 1, 0.85))
     };
 
     // 比较外观是否一致（忽略字体，内置主题应用时会沿用当前字体）
@@ -299,6 +319,7 @@ public sealed record CandidateSkin
         CandidateFontSize = Math.Clamp(CandidateFontSize, 9, 40),
         IndexFontSize = Math.Clamp(IndexFontSize, 8, 32),
         CodeFontSize = Math.Clamp(CodeFontSize, 8, 32),
+        CommentFontSize = Math.Clamp(CommentFontSize, 8, 32),
         BorderWidth = Math.Clamp(BorderWidth, 0, 6),
         ShadowRadius = Math.Clamp(ShadowRadius, 0, 40),
         ShadowOffsetX = Math.Clamp(ShadowOffsetX, -30, 30),

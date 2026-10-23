@@ -44,6 +44,7 @@ internal sealed class SkinEditor : StackPanel
                 Compact("距光标左", () => Skin.OffsetLeft, v => Update(s => s with { OffsetLeft = v }), -80, 80),
                 Compact("圆角", () => Skin.CornerRadius, v => Update(s => s with { CornerRadius = v }), 0, 30))),
             Card("布局细节", LayoutForm(skin)),
+            Card("备注", CommentForm(skin)),
             Card("明暗配色", ColorColumns(
             [
                 ("背景", 0), ("候选词", 1), ("序号", 2), ("编码", 8), ("边框", 3), ("阴影", 4)
@@ -157,6 +158,23 @@ internal sealed class SkinEditor : StackPanel
         return Row(title, combo);
     }
 
+    private static UIElement CommentForm(CandidateSkin skin)
+    {
+        var hint = UiKit.Label("备注优先取 Rime 候选的 comment；没有时显示码表第四列的备注（云端扩展词库的备注写在这一列）。", 11, secondary: true, wrap: true);
+        hint.MaxWidth = 420;
+        var enabled = UiKit.Check("显示候选备注", AppearancePrefs.ShowCommentInPanel, on =>
+        {
+            AppearancePrefs.ShowCommentInPanel = on;
+        }, "显示 Rime 候选项自带的备注（comment 字段）");
+        var sizes = UiKit.VStack(7,
+            NumberRow("备注字号", () => Skin.CommentFontSize, v => Update(s => s with { CommentFontSize = v }), 8, 32),
+            WeightRow("备注粗细", skin.FontName, skin.CommentWeight, w => Update(s => s with { CommentWeight = w })));
+        return UiKit.VStack(8,
+            enabled,
+            UiKit.TwoColumns(sizes, ColorColumns([("备注", 10), ("首选备注", 11)]), 12),
+            hint);
+    }
+
     // 两列均分：间距一对、字号一对，下方粗细一对
     private static UIElement LayoutForm(CandidateSkin skin)
     {
@@ -250,7 +268,9 @@ internal sealed class SkinEditor : StackPanel
         6 => c.HighlightText,
         7 => c.HighlightIndexText,
         8 => c.CodeText,
-        _ => c.HighlightCodeText
+        9 => c.HighlightCodeText,
+        10 => c.CommentText,
+        _ => c.HighlightCommentText
     };
 
     private static SkinColors WithColor(SkinColors c, int slot, RGBAColor v) => slot switch
@@ -264,7 +284,9 @@ internal sealed class SkinEditor : StackPanel
         6 => c with { HighlightText = v },
         7 => c with { HighlightIndexText = v },
         8 => c with { CodeText = v },
-        _ => c with { HighlightCodeText = v }
+        9 => c with { HighlightCodeText = v },
+        10 => c with { CommentText = v },
+        _ => c with { HighlightCommentText = v }
     };
 
     private static void SetColor(bool dark, int slot, RGBAColor value) => Update(s => dark

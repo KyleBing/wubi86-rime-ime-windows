@@ -70,7 +70,7 @@ internal sealed class CandidateWindow : IDisposable
         var (_, scale) = Native.MonitorAt(_caret.Left, _caret.Bottom);
         var skin = AppearancePrefs.Skin;
         var colors = skin.ColorsFor(SkinMedia.SystemIsDark);
-        var result = CandidateBarRenderer.Build(skin, colors, _page.Texts, _page.Codes, CandidateBarOptions.Current, true, scale);
+        var result = CandidateBarRenderer.Build(skin, colors, _page.Texts, _page.Codes, _page.Comments, CandidateBarOptions.Current, true, scale);
         _bitmap = CandidateBarRenderer.Rasterize(result.Root, result.Size, scale);
         _outsetPx = result.ShadowOutset * scale;
         _hitRects = result.HitRects

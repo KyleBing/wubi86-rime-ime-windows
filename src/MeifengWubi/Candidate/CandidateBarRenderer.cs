@@ -14,10 +14,12 @@ internal sealed record CandidateBarOptions(
     CandidateOrientation Orientation,
     IndexStyle IndexStyle,
     CandidateDisplayMode DisplayMode,
-    bool ShowCode)
+    bool ShowCode,
+    bool ShowComment)
 {
     public static CandidateBarOptions Current => new(
-        AppearancePrefs.Orientation, AppearancePrefs.IndexStyle, AppearancePrefs.DisplayMode, AppearancePrefs.ShowPreeditInPanel);
+        AppearancePrefs.Orientation, AppearancePrefs.IndexStyle, AppearancePrefs.DisplayMode,
+        AppearancePrefs.ShowPreeditInPanel, AppearancePrefs.ShowCommentInPanel);
 }
 
 // 一次排版的结果：根元素（含阴影外扩）、整体尺寸、各候选的可点区域（DIP，相对根元素左上角）
@@ -44,7 +46,7 @@ internal static class CandidateBarRenderer
 
     // 按皮肤排版一页候选；pixelsPerDip 用于文字度量
     public static CandidateBarResult Build(CandidateSkin skin, SkinColors colors, IReadOnlyList<string> texts,
-        IReadOnlyList<string> codes, CandidateBarOptions options, bool reserveShadow, double pixelsPerDip)
+        IReadOnlyList<string> codes, IReadOnlyList<string> comments, CandidateBarOptions options, bool reserveShadow, double pixelsPerDip)
     {
         var dots = options.DisplayMode == CandidateDisplayMode.Dots;
         var outset = ShadowOutset(skin, options, reserveShadow);
@@ -56,7 +58,7 @@ internal static class CandidateBarRenderer
         {
             bar = dots
                 ? DrawDots(dc, texts.Count, colors, hits)
-                : DrawItems(dc, skin, colors, texts, codes, options, pixelsPerDip, hits);
+                : DrawItems(dc, skin, colors, texts, codes, comments, options, pixelsPerDip, hits);
         }
 
         var size = new Size(bar.Width + outset * 2, bar.Height + outset * 2);
@@ -136,14 +138,17 @@ internal static class CandidateBarRenderer
         return new Size(width, DotBarHeight);
     }
 
-    private sealed record ItemLayout(FormattedText? Index, FormattedText Word, FormattedText? Code, double Width, double TextHeight, double MaxBaseline);
+    private sealed record ItemLayout(FormattedText? Index, FormattedText Word, FormattedText? Code, FormattedText? Comment, double Width, double TextHeight, double MaxBaseline);
 
     private static Size DrawItems(DrawingContext dc, CandidateSkin skin, SkinColors colors, IReadOnlyList<string> texts,
-        IReadOnlyList<string> codes, CandidateBarOptions options, double ppd, List<Rect> hits)
+        IReadOnlyList<string> codes, IReadOnlyList<string> comments, CandidateBarOptions options, double ppd, List<Rect> hits)
     {
         var vertical = options.Orientation == CandidateOrientation.Vertical;
         var showCode = options.ShowCode;
-        var rowHeight = Math.Ceiling(Math.Max(Math.Max(skin.CandidateFontSize, skin.IndexFontSize), showCode ? skin.CodeFontSize : 0) * 1.35);
+        var showComment = options.ShowComment;
+        var rowHeight = Math.Ceiling(Math.Max(Math.Max(skin.CandidateFontSize, skin.IndexFontSize), Math.Max(
+            showCode ? skin.CodeFontSize : 0,
+            showComment ? skin.CommentFontSize : 0)) * 1.35);
         var highlightOn = skin.HighlightEnabled;
         var inset = skin.HighlightInsets;
         var boxHeight = rowHeight + inset.Top + inset.Bottom;
@@ -165,15 +170,21 @@ internal static class CandidateBarRenderer
             FormattedText? code = showCode && codeText.Length > 0
                 ? Text(codeText, skin.FontName, skin.CodeFontSize, SkinFontWeight.Regular, highlighted ? colors.HighlightCodeText : colors.CodeText, ppd)
                 : null;
-            // 编码紧跟词条，间距固定 4，不跟序号间距走
-            var pairWidth = word.WidthIncludingTrailingWhitespace + (code != null ? 4 + code.WidthIncludingTrailingWhitespace : 0);
+            var commentText = i < comments.Count ? comments[i] : "";
+            FormattedText? comment = showComment && commentText.Length > 0
+                ? Text(commentText, skin.FontName, skin.CommentFontSize, skin.CommentWeight, highlighted ? colors.HighlightCommentText : colors.CommentText, ppd)
+                : null;
+            // 编码与备注紧跟词条，间距固定 4，不跟序号间距走
+            var pairWidth = word.WidthIncludingTrailingWhitespace
+                + (code != null ? 4 + code.WidthIncludingTrailingWhitespace : 0)
+                + (comment != null ? 4 + comment.WidthIncludingTrailingWhitespace : 0);
             var width = (index != null ? index.WidthIncludingTrailingWhitespace + skin.IndexSpacing : 0) + pairWidth;
-            var fields = new[] { index, word, code }.Where(f => f != null).Cast<FormattedText>().ToList();
+            var fields = new[] { index, word, code, comment }.Where(f => f != null).Cast<FormattedText>().ToList();
             var maxBaseline = fields.Max(f => f.Baseline);
             var textHeight = skin.VerticalAlignment == SkinVerticalAlignment.Bottom
                 ? maxBaseline + fields.Max(f => f.Height - f.Baseline)
                 : fields.Max(f => f.Height);
-            items.Add(new ItemLayout(index, word, code, width, textHeight, maxBaseline));
+            items.Add(new ItemLayout(index, word, code, comment, width, textHeight, maxBaseline));
         }
 
         var fillWidth = vertical && highlightOn;
@@ -230,6 +241,12 @@ internal static class CandidateBarRenderer
             {
                 cx += 4;
                 dc.DrawText(it.Code, new Point(cx, FieldTop(it.Code, it, textTop, skin.VerticalAlignment)));
+                cx += it.Code.WidthIncludingTrailingWhitespace;
+            }
+            if (it.Comment != null)
+            {
+                cx += 4;
+                dc.DrawText(it.Comment, new Point(cx, FieldTop(it.Comment, it, textTop, skin.VerticalAlignment)));
             }
         }
         return new Size(barWidth, barHeight);

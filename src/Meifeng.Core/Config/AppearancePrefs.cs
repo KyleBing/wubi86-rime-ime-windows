@@ -50,6 +50,7 @@ public static class AppearancePrefs
 
     private const string KeyOrientation = "candidate.orientation";
     private const string KeyShowPreedit = "candidate.showPreedit";
+    private const string KeyShowComment = "candidate.showComment";
     private const string KeyShowCaretModeHint = "input.showCaretModeHint";
     private const string KeyCodeDetail = "candidate.codeDetail";
     private const string KeyIndexStyle = "candidate.indexStyle";
@@ -242,6 +243,17 @@ public static class AppearancePrefs
         set
         {
             Store.Set(KeyShowPreedit, value);
+            Notify();
+        }
+    }
+
+    // 是否在每个候选词后面显示 Rime 提供的备注（comment）
+    public static bool ShowCommentInPanel
+    {
+        get => Store.GetBool(KeyShowComment) ?? false;
+        set
+        {
+            Store.Set(KeyShowComment, value);
             Notify();
         }
     }

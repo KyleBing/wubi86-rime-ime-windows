@@ -87,6 +87,18 @@ public sealed class DictLexiconIndex
         }
     }
 
+    // 候选条词后要标的备注：取码表第四列的备注，同词多条时优先当前编码命中的那条
+    public List<string> DisplayNotes(IReadOnlyList<string> texts, string preedit)
+    {
+        lock (_lock)
+        {
+            ReloadIfNeeded();
+            var reverse = IsReverseLookup(preedit);
+            var prefix = new string(preedit.ToLowerInvariant().Where(c => c < 128 && char.IsLetter(c)).ToArray());
+            return texts.Select(t => DisplayNoteUnlocked(t, prefix, reverse)).ToList();
+        }
+    }
+
     // 当前输入下，这个候选最可能对应的码，以及同词的其它编码
     public (List<DictLexiconHit> Hits, List<string> OtherCodes) Match(string text, string preedit)
     {
@@ -213,6 +225,17 @@ public sealed class DictLexiconIndex
         // 补码时已经打过的字母不再重复显示
         if (showFull || prefix.Length == 0) return code;
         return code[prefix.Length..];
+    }
+
+    private string DisplayNoteUnlocked(string text, string prefix, bool reverse)
+    {
+        var all = _byText.TryGetValue(text, out var l) ? l : [];
+        if (all.Count == 0) return "";
+        var matched = reverse ? all : all.Where(h => prefix.Length == 0 || h.Entry.Code.StartsWith(prefix, StringComparison.Ordinal)).ToList();
+        var pool = matched.Count == 0 ? all : matched;
+        var exact = prefix.Length == 0 ? [] : pool.Where(h => h.Entry.Code == prefix).ToList();
+        var preferred = exact.Count == 0 ? pool : exact;
+        return preferred.FirstOrDefault(h => h.Entry.Note.Length > 0)?.Entry.Note ?? "";
     }
 
     // 按用户感知的字数计长度（扩展区汉字是代理对）

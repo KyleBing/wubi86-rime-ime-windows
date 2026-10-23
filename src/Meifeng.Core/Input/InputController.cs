@@ -394,7 +394,7 @@ public sealed class InputController
             if (target != _specialPage)
             {
                 _specialPage = target;
-                ShowCandidates(special, preedit);
+                ShowCandidates(special, [], preedit);
             }
             return true;
         }
@@ -653,10 +653,11 @@ public sealed class InputController
         var preedit = snap.Preedit ?? "";
         var special = DateTimeCandidates.CandidatesFor(preedit);
         var texts = special ?? snap.Candidates.Select(c => c.Text).ToList();
+        var comments = special == null ? snap.Candidates.Select(c => c.Comment ?? "").ToList() : [];
         if (snap.IsComposing || texts.Count > 0)
         {
             SetMarkedText(preedit);
-            ShowCandidates(texts, preedit);
+            ShowCandidates(texts, comments, preedit);
         }
         else
         {
@@ -682,7 +683,7 @@ public sealed class InputController
         return ConsumeRimeUpdate();
     }
 
-    private void ShowCandidates(List<string> texts, string preedit)
+    private void ShowCandidates(List<string> texts, List<string> rimeComments, string preedit)
     {
         // 没有候选时只保留编码下划线，不弹出空候选窗
         if (texts.Count == 0)
@@ -701,8 +702,26 @@ public sealed class InputController
             page = texts.Skip(start).Take(pageSize).ToList();
         }
         var codes = CandidateCodes(page, preedit);
+        var comments = CandidateComments(rimeComments, page, preedit);
         _onCandidateClick = SelectCandidate;
-        _ui.ShowCandidates(new CandidatePage(page, codes));
+        _ui.ShowCandidates(new CandidatePage(page, codes, comments));
+    }
+
+    // 备注：Rime comment 优先；没有时取码表第四列
+    private List<string> CandidateComments(List<string> rime, List<string> texts, string preedit)
+    {
+        if (!AppearancePrefs.ShowCommentInPanel || DateTimeCandidates.CandidatesFor(preedit) != null) return [];
+        var typed = _engine.RawInput();
+        var input = typed.Length == 0 ? preedit : typed;
+        var notes = DictLexiconIndex.Shared.DisplayNotes(texts, input);
+        var result = new List<string>(texts.Count);
+        for (var i = 0; i < texts.Count; i++)
+        {
+            var value = i < rime.Count ? rime[i].Trim() : "";
+            if (value.Length > 0) result.Add(value);
+            else result.Add(i < notes.Count ? notes[i] : "");
+        }
+        return result;
     }
 
     // 词后编码：普通输入只显示还没打完的后几码；z 反查显示单字五笔码。预置候选没有五笔码

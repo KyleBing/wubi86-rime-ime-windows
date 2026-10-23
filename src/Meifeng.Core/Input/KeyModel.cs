@@ -51,7 +51,15 @@ public sealed class ImeOutput
 }
 
 // 候选窗要显示的一页
-public sealed record CandidatePage(IReadOnlyList<string> Texts, IReadOnlyList<string> Codes, int Highlighted = 0);
+public sealed record CandidatePage(
+    IReadOnlyList<string> Texts,
+    IReadOnlyList<string> Codes,
+    IReadOnlyList<string> Comments,
+    int Highlighted = 0)
+{
+    public CandidatePage(IReadOnlyList<string> texts, IReadOnlyList<string> codes, int highlighted = 0)
+        : this(texts, codes, [], highlighted) { }
+}
 
 // 输入控制器需要的界面能力。实现必须是非阻塞的（内部投递到界面线程）
 public interface IImeUi
