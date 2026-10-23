@@ -19,6 +19,9 @@ public sealed class RevisionConflictException(int revision) : WubiCloudException
 public static class WubiCloudApi
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
+    private static readonly object MaxCharsCacheLock = new();
+    private static (int Value, DateTimeOffset At)? MaxCharsCache;
+    private static readonly TimeSpan MaxCharsCacheTtl = TimeSpan.FromMinutes(5);
 
     public sealed record DictMeta(int Revision, string? ContentHash, int? WordCount, string? DateUpdate);
 
@@ -26,6 +29,39 @@ public static class WubiCloudApi
 
     // 扩展词库词条
     public sealed record ExtraWordItem(int? Id, string Code, string Word, int Weight, string? Comment, int CategoryId, string CategoryName);
+
+    // 公开配置中的同步字符上限；失败回退本地默认
+    public static async Task<int> FetchDictSyncMaxCharsAsync(string? baseUrl = null)
+    {
+        lock (MaxCharsCacheLock)
+        {
+            if (MaxCharsCache is { } cached && DateTimeOffset.Now - cached.At < MaxCharsCacheTtl)
+            {
+                return cached.Value;
+            }
+        }
+        var fallback = WubiCloudConfig.SyncMaxContentLength;
+        try
+        {
+            var root = baseUrl ?? WubiCloudConfig.BaseUrl;
+            var data = await SendAsync(HttpMethod.Get, MakeUrl(root, "system-config"), null, null).ConfigureAwait(false);
+            var max = fallback;
+            if (Success(data) && data["data"] is JsonObject cfg)
+            {
+                var n = Int(cfg["dict_sync_max_chars"]);
+                if (n > 0) max = n;
+            }
+            lock (MaxCharsCacheLock)
+            {
+                MaxCharsCache = (max, DateTimeOffset.Now);
+            }
+            return max;
+        }
+        catch
+        {
+            return fallback;
+        }
+    }
 
     // POST user/login，成功后写入本地账号
     public static async Task<WubiCloudUserInfo> LoginAsync(string email, string password, string? baseUrl = null)
@@ -82,9 +118,10 @@ public static class WubiCloudApi
     {
         var user = RequireUser();
         var length = new StringInfo(yaml).LengthInTextElements;
-        if (length >= WubiCloudConfig.SyncMaxContentLength)
+        var maxChars = await FetchDictSyncMaxCharsAsync().ConfigureAwait(false);
+        if (length >= maxChars)
         {
-            throw new WubiCloudException($"同步内容超过 {WubiCloudConfig.SyncMaxContentLength} 字");
+            throw new WubiCloudException($"同步内容超过 {maxChars} 字");
         }
         var body = new JsonObject
         {
