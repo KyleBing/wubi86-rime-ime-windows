@@ -35,6 +35,17 @@ public static class WubiCloudConfig
         [JsonPropertyName("lastExtraPullAt")] public double LastExtraPullAt { get; set; }
     }
 
+    // 管理后台根地址（由 API base 推导，用于注册申请等页面）
+    public static string ManagerPublicBase(string? fromBaseUrl = null)
+    {
+        var baseUrl = ResolveBaseUrl(fromBaseUrl ?? BaseUrl).TrimEnd('/');
+        if (baseUrl.Contains("/portal", StringComparison.Ordinal))
+            return baseUrl.Replace("/portal", "/manager", StringComparison.Ordinal);
+        return baseUrl + "/wubi/manager";
+    }
+
+    public static string RegisterApplyUrl => ManagerPublicBase() + "/#/register-apply";
+
     // 补全协议和末尾斜杠；旧的 http 地址换成 https
     public static string ResolveBaseUrl(string? raw)
     {

@@ -126,8 +126,9 @@ internal sealed class CloudBar : Border, IDisposable
             ? (user.Nickname.Length == 0 ? user.Email : user.Nickname)
             : "未登录";
         _extraMeta.Text = $"{ExtraDictUpdater.LocalEntryCount()} 条";
-        var enabled = loggedIn && !_busy;
-        foreach (var b in new[] { _compare, _merge, _upload, _download, _extra }) b.IsEnabled = enabled;
+        var syncEnabled = loggedIn && !_busy;
+        foreach (var b in new[] { _compare, _merge, _upload, _download }) b.IsEnabled = syncEnabled;
+        _extra.IsEnabled = !_busy;
         _autoSync.IsChecked = UserDictAutoSync.IsEnabled;
         if (!loggedIn)
         {

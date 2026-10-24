@@ -5,6 +5,7 @@ namespace Meifeng.Core.Config;
 public enum PunctuationMode { Direct, Candidates }
 
 // 标点由输入法处理，不走 Rime 的标点表。默认全部直接上屏第一项
+// 双引号和单引号除外：直接上屏时第一次出前引号，第二次出后引号，然后交替
 public static class PunctuationPrefs
 {
     public sealed record Item(string Key, string[] Symbols, PunctuationMode DefaultMode = PunctuationMode.Direct);
@@ -99,4 +100,22 @@ public static class PunctuationPrefs
     // 按空白拆成多项，一项里的符号可以是多个字，例如「……」
     public static string[] ParseSymbols(string text) =>
         text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
+    // 记住引号下一次该出前还是后。失焦后清掉，下一处从前往引号开始
+    public sealed class PairState
+    {
+        private readonly Dictionary<string, bool> _closingNext = new();
+
+        public void Reset() => _closingNext.Clear();
+
+        // 直接上屏用的符号。引号、单引号在两项之间交替，其它键仍是第一项
+        public string DirectSymbol(string key, string[] symbols)
+        {
+            var primary = symbols.Length > 0 ? symbols[0] : key;
+            if (symbols.Length < 2 || (key != "\"" && key != "'")) return primary;
+            var closing = _closingNext.TryGetValue(key, out var flag) && flag;
+            _closingNext[key] = !closing;
+            return closing ? symbols[1] : primary;
+        }
+    }
 }

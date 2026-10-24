@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using Meifeng.Core.Sync;
@@ -9,7 +10,7 @@ namespace MeifengWubi.Settings;
 internal static class AccountPage
 {
     public static FrameworkElement Build() =>
-        UiKit.Page("账户", "登录后，到「用户词」页同步用户词并获取扩展词库。", UiKit.Card(null, null, new AccountForm()));
+        UiKit.Page("账户", "登录门户同步账号。", UiKit.Card(null, null, new AccountForm()));
 }
 
 internal sealed class AccountForm : StackPanel
@@ -21,6 +22,12 @@ internal sealed class AccountForm : StackPanel
     private readonly Button _login = new() { Content = "登录", Padding = new Thickness(14, 4, 14, 5), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Button _logout = new() { Content = "退出登录", Padding = new Thickness(14, 4, 14, 5), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _status = UiKit.Label("", 12, secondary: true, wrap: true);
+    private readonly TextBlock _registerInfo = UiKit.Label(
+        "付费申请同步账号，实现多端个人用户词同步。",
+        12,
+        secondary: true,
+        wrap: true);
+    private readonly Button _registerApply = new() { Content = "在浏览器中申请注册", Padding = new Thickness(14, 4, 14, 5), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly StackPanel _loginForm;
     private bool _busy;
 
@@ -33,11 +40,21 @@ internal sealed class AccountForm : StackPanel
         {
             if (e.Key == System.Windows.Input.Key.Enter) Login();
         };
+        _registerApply.Click += (_, _) => OpenRegisterApply();
         _loginForm = UiKit.VStack(8, Labeled("请求地址", _base), Labeled("邮箱", _email), Labeled("密码", _password), _login);
-        var hint = UiKit.Label("登录后到「用户词」页同步用户词，或获取扩展词库。", 11, secondary: true, wrap: true);
-        _account.MaxWidth = _status.MaxWidth = hint.MaxWidth = 460;
-        _account.HorizontalAlignment = _status.HorizontalAlignment = hint.HorizontalAlignment = HorizontalAlignment.Left;
-        UiKit.AddSpaced(this, 8, [UiKit.Label("登录", 13, FontWeights.SemiBold), _account, _loginForm, _logout, hint, _status]);
+        _account.MaxWidth = _status.MaxWidth = _registerInfo.MaxWidth = 460;
+        _account.HorizontalAlignment = _status.HorizontalAlignment = _registerInfo.HorizontalAlignment = HorizontalAlignment.Left;
+        UiKit.AddSpaced(this, 8,
+        [
+            UiKit.Label("登录", 13, FontWeights.SemiBold),
+            _account,
+            _loginForm,
+            _logout,
+            _status,
+            UiKit.Label("申请注册", 13, FontWeights.SemiBold),
+            _registerInfo,
+            _registerApply
+        ]);
         IsVisibleChanged += (_, _) =>
         {
             if (IsVisible) Refresh();
@@ -104,5 +121,17 @@ internal sealed class AccountForm : StackPanel
         _password.Password = "";
         UiKit.SetTone(_status, "已退出登录", Tone.Idle);
         Refresh();
+    }
+
+    private void OpenRegisterApply()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(WubiCloudConfig.RegisterApplyUrl) { UseShellExecute = true });
+        }
+        catch (Exception e)
+        {
+            UiKit.SetTone(_status, e.Message, Tone.Error);
+        }
     }
 }

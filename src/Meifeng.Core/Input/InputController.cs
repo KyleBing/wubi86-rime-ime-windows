@@ -32,6 +32,8 @@ public sealed class InputController
     private enum RecentKind { Other, Digit, HalfWidthAfterDigit }
     private RecentKind _recent = RecentKind.Other;
     private string _recentHalfWidth = "";
+    // 中文引号、单引号：第一次前引号，第二次后引号
+    private readonly PunctuationPrefs.PairState _quotePair = new();
 
     // 当前编码区文字（marked text）
     private string _marked = "";
@@ -134,6 +136,7 @@ public sealed class InputController
         CommitOrClearPending(false);
         ClearPunctuation();
         _recent = RecentKind.Other;
+        _quotePair.Reset();
         _ui.HideCandidates();
         // 输入框失焦后提示不再属于当前会话，立刻收掉
         _ui.HideModeHint();
@@ -505,7 +508,7 @@ public sealed class InputController
         }
         if (mode == PunctuationMode.Direct)
         {
-            CommitPunctuation(primary);
+            CommitPunctuation(_quotePair.DirectSymbol(item.Key, symbols));
             return;
         }
         _punctSymbols = symbols;

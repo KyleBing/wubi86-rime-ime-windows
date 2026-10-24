@@ -146,7 +146,7 @@ public static class WubiCloudApi
     // 拉取线上扩展词库全部分类词条，只读不回写
     public static async Task<List<ExtraWordItem>> PullExtraDictAsync()
     {
-        var user = RequireUser();
+        var user = WubiCloudConfig.UserInfo is { IsLoggedIn: true } u ? u : null;
         var data = await SendAsync(HttpMethod.Post, MakeUrl(WubiCloudConfig.BaseUrl, "word/export-extra"), new JsonObject(), user);
         if (!Success(data) || data["data"] is not JsonArray list)
         {

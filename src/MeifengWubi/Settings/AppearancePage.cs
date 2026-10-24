@@ -74,6 +74,7 @@ internal sealed class AppearancePage : Grid, IDisposable
         grid.Children.Add(_previewArea);
 
         var test = UiKit.Field(placeholder: "在此打字，查看实际候选窗");
+        test.FontFamily = new FontFamily("Consolas, Monaco, Global Monospace");
         test.FontSize = 14;
         test.VerticalAlignment = VerticalAlignment.Center;
         SetColumn(test, 2);

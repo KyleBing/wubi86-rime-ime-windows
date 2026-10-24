@@ -15,7 +15,7 @@ internal static class PunctuationPage
         var body = new StackPanel();
         Fill(body);
         return UiKit.Page("标点",
-            "标点由输入法处理。默认每键直接上屏第一项。输出用空格分开多项，可直接修改。改成候选列表后会弹出全部符号供选择。",
+            "标点由输入法处理。默认每键直接上屏第一项。引号和单引号第一次出前引号，第二次出后引号。输出用空格分开多项，可直接修改。改成候选列表后会弹出全部符号供选择。",
             UiKit.Card("标点输出", null, body));
     }
 

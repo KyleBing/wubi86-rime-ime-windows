@@ -1,3 +1,4 @@
+using Meifeng.Core.Config;
 using Meifeng.Core.Input;
 using Meifeng.Core.Ipc;
 using Meifeng.Core.Lexicon;
@@ -8,6 +9,23 @@ namespace Meifeng.Core.Tests;
 // 与平台无关的核心逻辑：管道协议、候选排序权重、用户词解析、三方合并、自动编码、日期候选
 public class CoreLogicTests
 {
+    [Fact]
+    public void QuotesAlternateOpenThenClose()
+    {
+        var pair = new PunctuationPrefs.PairState();
+        Assert.Equal("“", pair.DirectSymbol("\"", ["“", "”"]));
+        Assert.Equal("”", pair.DirectSymbol("\"", ["“", "”"]));
+        Assert.Equal("“", pair.DirectSymbol("\"", ["“", "”"]));
+        Assert.Equal("‘", pair.DirectSymbol("'", ["‘", "’"]));
+        Assert.Equal("’", pair.DirectSymbol("'", ["‘", "’"]));
+        // 中间夹着别的标点，引号的前后状态还在
+        Assert.Equal("，", pair.DirectSymbol(",", ["，"]));
+        Assert.Equal("”", pair.DirectSymbol("\"", ["“", "”"]));
+        pair.Reset();
+        Assert.Equal("“", pair.DirectSymbol("\"", ["“", "”"]));
+        Assert.Equal("‘", pair.DirectSymbol("'", ["‘", "’"]));
+    }
+
     [Fact]
     public void ProtocolRoundTripsSpecialCharacters()
     {
