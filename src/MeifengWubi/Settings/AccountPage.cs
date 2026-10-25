@@ -22,11 +22,7 @@ internal sealed class AccountForm : StackPanel
     private readonly Button _login = new() { Content = "登录", Padding = new Thickness(14, 4, 14, 5), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Button _logout = new() { Content = "退出登录", Padding = new Thickness(14, 4, 14, 5), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _status = UiKit.Label("", 12, secondary: true, wrap: true);
-    private readonly TextBlock _registerInfo = UiKit.Label(
-        "付费申请同步账号，实现多端个人用户词同步。",
-        12,
-        secondary: true,
-        wrap: true);
+    private readonly TextBlock _registerInfo = UiKit.Label(RegistrationApplyCopy.Hint, 12, secondary: true, wrap: true);
     private readonly Button _registerApply = new() { Content = "在浏览器中申请注册", Padding = new Thickness(14, 4, 14, 5), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly StackPanel _loginForm;
     private bool _busy;

@@ -19,9 +19,9 @@ public sealed class RevisionConflictException(int revision) : WubiCloudException
 public static class WubiCloudApi
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
-    private static readonly object MaxCharsCacheLock = new();
-    private static (int Value, DateTimeOffset At)? MaxCharsCache;
-    private static readonly TimeSpan MaxCharsCacheTtl = TimeSpan.FromMinutes(5);
+    private static readonly object PublicConfigCacheLock = new();
+    private static (JsonObject? Config, DateTimeOffset At)? PublicConfigCache;
+    private static readonly TimeSpan PublicConfigCacheTtl = TimeSpan.FromMinutes(5);
 
     public sealed record DictMeta(int Revision, string? ContentHash, int? WordCount, string? DateUpdate);
 
@@ -30,37 +30,40 @@ public static class WubiCloudApi
     // 扩展词库词条
     public sealed record ExtraWordItem(int? Id, string Code, string Word, int Weight, string? Comment, int CategoryId, string CategoryName);
 
-    // 公开配置中的同步字符上限；失败回退本地默认
-    public static async Task<int> FetchDictSyncMaxCharsAsync(string? baseUrl = null)
+    private static async Task<JsonObject?> FetchPublicSystemConfigAsync(string? baseUrl = null)
     {
-        lock (MaxCharsCacheLock)
+        lock (PublicConfigCacheLock)
         {
-            if (MaxCharsCache is { } cached && DateTimeOffset.Now - cached.At < MaxCharsCacheTtl)
+            if (PublicConfigCache is { } cached && DateTimeOffset.Now - cached.At < PublicConfigCacheTtl)
             {
-                return cached.Value;
+                return cached.Config;
             }
         }
-        var fallback = WubiCloudConfig.SyncMaxContentLength;
         try
         {
             var root = baseUrl ?? WubiCloudConfig.BaseUrl;
             var data = await SendAsync(HttpMethod.Get, MakeUrl(root, "system-config"), null, null).ConfigureAwait(false);
-            var max = fallback;
-            if (Success(data) && data["data"] is JsonObject cfg)
+            JsonObject? cfg = Success(data) && data["data"] is JsonObject obj ? obj : null;
+            lock (PublicConfigCacheLock)
             {
-                var n = Int(cfg["dict_sync_max_chars"]);
-                if (n > 0) max = n;
+                PublicConfigCache = (cfg, DateTimeOffset.Now);
             }
-            lock (MaxCharsCacheLock)
-            {
-                MaxCharsCache = (max, DateTimeOffset.Now);
-            }
-            return max;
+            return cfg;
         }
         catch
         {
-            return fallback;
+            return null;
         }
+    }
+
+    // 公开配置中的同步字符上限；失败回退本地默认
+    public static async Task<int> FetchDictSyncMaxCharsAsync(string? baseUrl = null)
+    {
+        var fallback = WubiCloudConfig.SyncMaxContentLength;
+        var cfg = await FetchPublicSystemConfigAsync(baseUrl).ConfigureAwait(false);
+        if (cfg is null) return fallback;
+        var n = Int(cfg["dict_sync_max_chars"]);
+        return n > 0 ? n : fallback;
     }
 
     // POST user/login，成功后写入本地账号
