@@ -50,7 +50,7 @@ internal static class HelpPage
             ("距光标上 / 左", "在「外观配置 › 边距与位置」中调整候选窗与光标的距离"),
             ("皮肤分享", "外观可导出为文件，在其他设备（含 macOS 版）从文件导入")
         ]);
-        var contact = UiKit.VStack(8, ContactRow("邮箱", "kylebing@163.com"), ContactRow("QQ 群", "878750538"));
+        var contact = UiKit.VStack(8, ContactRow("邮箱", "kylebing@163.com"), ContactRow("QQ 群", "1064664481"));
         var openSource = HelpList([
             ("librime", "BSD 3-Clause License。中州韵输入法引擎，Copyright © RIME Developers。https://github.com/rime/librime"),
             ("Rime prelude", "BSD 3-Clause License。共享预设 default.yaml、key_bindings.yaml、punctuation.yaml、symbols.yaml。https://github.com/rime/rime-prelude"),
