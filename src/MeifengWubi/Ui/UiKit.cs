@@ -272,9 +272,9 @@ internal static class UiKit
     }
 
     // 带一个输入框的对话框；取消返回 null
-    public static string? Prompt(Window? owner, string title, string message, string initial, string placeholder, string confirm)
+    public static string? Prompt(Window? owner, string title, string message, string initial, string placeholder, string confirm, bool destructive = false)
     {
-        var dialog = new SimpleDialog(title, message, confirm, "取消", (initial, placeholder), false);
+        var dialog = new SimpleDialog(title, message, confirm, "取消", (initial, placeholder), destructive);
         if (owner != null && owner.IsVisible) dialog.Owner = owner;
         return dialog.ShowDialog() == true ? dialog.InputText : null;
     }

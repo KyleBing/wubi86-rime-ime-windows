@@ -146,6 +146,26 @@ public static class WubiCloudApi
         return Int(payload?["revision"]);
     }
 
+    // 删除线上同步数据：清空云端个人词库备份，账号与本地词库保留
+    public static async Task<string> ClearSyncDataAsync()
+    {
+        var user = RequireUser();
+        var data = await SendAsync(HttpMethod.Delete, MakeUrl(WubiCloudConfig.BaseUrl, "user/clear-sync-data"), null, user);
+        if (!Success(data)) throw new WubiCloudException(Str(data["message"]) ?? "删除失败");
+        // 云端已无备份，清掉本地同步时间
+        WubiCloudConfig.LastSyncAt = null;
+        return Str(data["message"]) ?? "线上同步数据已删除";
+    }
+
+    // 注销账号：删除服务端全部用户数据，成功后由调用方清理本地登录态
+    public static async Task<string> DestroyAccountAsync()
+    {
+        var user = RequireUser();
+        var data = await SendAsync(HttpMethod.Delete, MakeUrl(WubiCloudConfig.BaseUrl, "user/destroy-account"), null, user);
+        if (!Success(data)) throw new WubiCloudException(Str(data["message"]) ?? "注销失败");
+        return Str(data["message"]) ?? "账号已注销";
+    }
+
     // 拉取线上扩展词库全部分类词条，只读不回写
     public static async Task<List<ExtraWordItem>> PullExtraDictAsync()
     {
