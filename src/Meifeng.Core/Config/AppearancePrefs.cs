@@ -247,10 +247,10 @@ public static class AppearancePrefs
         }
     }
 
-    // 是否在每个候选词后面显示 Rime 提供的备注（comment）
+    // 是否在每个候选词后面显示 Rime 提供的备注（comment）。默认显示
     public static bool ShowCommentInPanel
     {
-        get => Store.GetBool(KeyShowComment) ?? false;
+        get => Store.GetBool(KeyShowComment) ?? true;
         set
         {
             Store.Set(KeyShowComment, value);
