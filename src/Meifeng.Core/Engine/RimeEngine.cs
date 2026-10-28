@@ -139,10 +139,13 @@ public sealed unsafe class RimeEngine
         try
         {
             var dirs = RimeResourceDeployer.SyncBundledResourcesIfNeeded() ?? throw new InvalidOperationException("缺少内置 Rime 资源");
+            // 关掉方案里旧的 auto_select 后需要重新编译，否则本轮仍会四码唯一自动上屏
+            var force = forceFullCheck || UserDictWriter.PeekNeedsDeploy();
             // 共享目录单独指向内置预设，避免用户目录没有 default.yaml 时编译不出方案
             var shared = RimeResourceDeployer.ResolveSharedDataDir() ?? dirs.User;
             RimeResourceDeployer.EnsureMissingImportedDicts(dirs.User);
-            StartBridge(shared, dirs.User, forceFullCheck);
+            StartBridge(shared, dirs.User, force);
+            if (force) UserDictWriter.ConsumeNeedsDeploy();
             Started = true;
             UserDictAutoSync.NoteEngineDidReload();
             Log.Write($"rime started forceFull={forceFullCheck} user={dirs.User}");

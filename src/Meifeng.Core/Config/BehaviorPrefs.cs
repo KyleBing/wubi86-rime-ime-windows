@@ -63,6 +63,7 @@ public static class BehaviorPrefs
     private const string KeySecondThirdKeys = "rime.secondThirdKeys";
     private const string KeyEmptyCodeClear = "rime.emptyCodeClear";
     private const string KeyEnterClearsCode = "rime.enterClearsCode";
+    private const string KeyAutoSelectUniqueFourCode = "rime.autoSelectUniqueFourCode";
 
     // 行为设置写盘后触发，引擎据此重新部署
     public static event Action? Changed;
@@ -118,6 +119,13 @@ public static class BehaviorPrefs
             Store.Set(KeySecondThirdKeys, value == SecondThirdKeys.None ? "none" : "semicolonApostrophe");
             Persist();
         }
+    }
+
+    // 四码唯一：打满四码且只有一个候选时自动上屏。默认关；方案里的 auto_select 已关闭，由输入法按开关处理
+    public static bool AutoSelectUniqueFourCode
+    {
+        get => Store.GetBool(KeyAutoSelectUniqueFourCode) ?? false;
+        set => Store.Set(KeyAutoSelectUniqueFourCode, value);
     }
 
     // 空码清空：打满四码仍没有候选时清空编码。默认关，与方案里的 auto_clear 注释状态一致

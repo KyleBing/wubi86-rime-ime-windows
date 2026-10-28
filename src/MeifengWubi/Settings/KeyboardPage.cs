@@ -6,12 +6,17 @@ using MeifengWubi.Ui;
 
 namespace MeifengWubi.Settings;
 
-// 输入习惯页：回车清码、翻页键、二三候选、光标提示、造词与排序快捷键
+// 输入习惯页：四码唯一、回车清码、翻页键、二三候选、光标提示、造词与排序快捷键
 internal static class KeyboardPage
 {
     public static FrameworkElement Build()
     {
-        // 空码清空 / 回车清码：按键时直接判断，改完立即生效，不需要重新部署
+        // 四码唯一 / 空码清空 / 回车清码：按键时直接判断，改完立即生效，不需要重新部署
+        var uniqueFourText = "输入满四码且只有一个候选时自动上屏";
+        var uniqueFour = UiKit.Check("", BehaviorPrefs.AutoSelectUniqueFourCode, on => BehaviorPrefs.AutoSelectUniqueFourCode = on, uniqueFourText);
+        var uniqueFourNote = UiKit.Label(uniqueFourText, 11, secondary: true, wrap: true);
+        uniqueFourNote.MaxWidth = 360;
+
         var emptyCodeText = "打满四码仍无候选时清空编码";
         var emptyCode = UiKit.Check("", BehaviorPrefs.EmptyCodeClear, on => BehaviorPrefs.EmptyCodeClear = on, emptyCodeText);
         var emptyCodeNote = UiKit.Label(emptyCodeText, 11, secondary: true, wrap: true);
@@ -34,7 +39,7 @@ internal static class KeyboardPage
         var caretNote = UiKit.Label(caretText, 11, secondary: true, wrap: true);
         caretNote.MaxWidth = 360;
 
-        var note = UiKit.Label("空码清空和回车清码在按键时直接判断，改完立即生效；z 开头的拼音反查和 date / time 等预置编码不参与。翻页与选词写入 Rime 配置，下次按键时生效。造词与排序快捷键立即作用于输入法。候选出现时，用与造词相同的修饰键加数字（默认 Ctrl+Alt+1）可删除对应候选；排序快捷键（默认 Ctrl+Alt+0）由输入法接管，避免被当前软件占用。排序只改被拖动词条的权重，幅度为 5 或 10。", 11, secondary: true, wrap: true);
+        var note = UiKit.Label("四码唯一上屏、空码清空和回车清码在按键时直接判断，改完立即生效；z 开头的拼音反查和 date / time 等预置编码不参与。翻页与选词写入 Rime 配置，下次按键时生效。造词与排序快捷键立即作用于输入法。候选出现时，用与造词相同的修饰键加数字（默认 Ctrl+Alt+1）可删除对应候选；排序快捷键（默认 Ctrl+Alt+0）由输入法接管，避免被当前软件占用。排序只改被拖动词条的权重，幅度为 5 或 10。", 11, secondary: true, wrap: true);
         note.MaxWidth = 460;
         note.HorizontalAlignment = HorizontalAlignment.Left;
 
@@ -43,6 +48,7 @@ internal static class KeyboardPage
             (vk, mods, display) => RankPrefs.SaveShortcut(vk, mods, display));
 
         var settings = UiKit.VStack(14,
+            Row("四码唯一上屏", uniqueFour, uniqueFourNote),
             Row("空码清空", emptyCode, emptyCodeNote),
             Row("回车清码", enterCode, enterCodeNote),
             Row("翻页键", paging),
@@ -51,10 +57,11 @@ internal static class KeyboardPage
             Row("造词", new QuickAddHotKeyRecorder()),
             Row("排序", rankHotKey),
             note);
-        return UiKit.Page("输入习惯", "设置回车清码、翻页、快捷选词、造词和排序快捷键。", UiKit.Card("打码与按键", null, settings));
+        return UiKit.Page("输入习惯", "设置四码唯一上屏、空码清空、回车清码、翻页、快捷选词、造词和排序快捷键。", UiKit.Card("打码与按键", null, settings));
     }
 
-    private static StackPanel Row(string title, params UIElement[] controls) => UiKit.FormRow(title, 82, controls);
+    // 宽一点以容纳「四码唯一上屏」
+    private static StackPanel Row(string title, params UIElement[] controls) => UiKit.FormRow(title, 108, controls);
 }
 
 // 快捷键录制：点一下后按下新的组合键。读取显示与保存由构造时给的委托决定

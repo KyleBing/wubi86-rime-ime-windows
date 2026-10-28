@@ -326,6 +326,7 @@ public sealed class InputController
         if (handled)
         {
             ApplyEmptyCodeClear();
+            ApplyUniqueFourCodeSelect();
             return ConsumeRimeUpdate();
         }
         if (_engine.Snapshot(peekOnly: true)?.IsComposing == true) return true;
@@ -624,6 +625,18 @@ public sealed class InputController
         if (!IsFullFourCode(CodeOf(preedit)) || snap.Candidates.Count > 0) return;
         if (DateTimeCandidates.CandidatesFor(preedit) != null) return;
         _engine.ClearComposition();
+    }
+
+    // 四码唯一：打满四码且整表只有一个候选时上屏第一项
+    private void ApplyUniqueFourCodeSelect()
+    {
+        if (!BehaviorPrefs.AutoSelectUniqueFourCode) return;
+        var snap = _engine.Snapshot(peekOnly: true);
+        if (snap is not { IsComposing: true } || snap.Preedit is not { } preedit) return;
+        if (!IsFullFourCode(CodeOf(preedit))) return;
+        if (DateTimeCandidates.CandidatesFor(preedit) != null) return;
+        if (_engine.AllCandidateTexts().Count != 1) return;
+        _engine.SelectCandidateOnPage(0);
     }
 
     // 当前实际输入的编码。RawInput 在反查时仍带 z，Preedit 可能已被格式化，以 RawInput 为准

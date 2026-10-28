@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Meifeng.Core.Lexicon;
 
 namespace Meifeng.Core.Config;
 
@@ -108,7 +109,11 @@ public static class RimeResourceDeployer
     public static (string Shared, string User)? SyncBundledResourcesIfNeeded()
     {
         var user = ResolveUserDataDir();
-        if (ContainsSchemaFile(user)) return (user, user);
+        if (ContainsSchemaFile(user))
+        {
+            DisableSchemaAutoSelectIfNeeded(user);
+            return (user, user);
+        }
         CopyMissingBundledFiles(user);
         var marker = Path.Combine(user, ".resource_version");
         string? markerValue = null;
@@ -120,6 +125,7 @@ public static class RimeResourceDeployer
             if (File.Exists(Path.Combine(user, SchemaFileName))
                 && File.Exists(Path.Combine(user, "wubi86_jidian.dict.yaml")))
             {
+                DisableSchemaAutoSelectIfNeeded(user);
                 return (user, user);
             }
         }
@@ -131,7 +137,27 @@ public static class RimeResourceDeployer
         {
             return null;
         }
+        DisableSchemaAutoSelectIfNeeded(user);
         return (user, user);
+    }
+
+    // 已安装用户目录里的方案仍可能是旧的 auto_select: true，关掉后四码唯一才交给设置开关
+    public static bool DisableSchemaAutoSelectIfNeeded(string root)
+    {
+        var path = Path.Combine(root, SchemaFileName);
+        try
+        {
+            if (!File.Exists(path)) return false;
+            var text = File.ReadAllText(path);
+            if (!text.Contains("auto_select: true")) return false;
+            File.WriteAllText(path, text.Replace("auto_select: true", "auto_select: false"));
+            UserDictWriter.MarkNeedsDeploy();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     // 强制把内置方案拷到用户目录；overwriteUserDict 为 true 时连用户词库一并覆盖（复位用）

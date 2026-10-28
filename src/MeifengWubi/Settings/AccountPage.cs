@@ -25,6 +25,7 @@ internal sealed class AccountForm : StackPanel
     private readonly TextBlock _registerInfo = UiKit.Label(RegistrationApplyCopy.Hint, 12, secondary: true, wrap: true);
     private readonly Button _registerApply = new() { Content = "在浏览器中申请注册", Padding = new Thickness(14, 4, 14, 5), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly StackPanel _loginForm;
+    private readonly StackPanel _registerSection;
     // 账号数据区：删除线上同步数据 / 注销账号
     private readonly TextBlock _accountDataInfo = UiKit.Label(
         "删除线上同步数据：清空云端备份的个人词库，同步次数归零；本机词库和账号资料不受影响。\n" +
@@ -51,6 +52,10 @@ internal sealed class AccountForm : StackPanel
         _loginForm = UiKit.VStack(8, Labeled("请求地址", _base), Labeled("邮箱", _email), Labeled("密码", _password), _login);
         _account.MaxWidth = _status.MaxWidth = _registerInfo.MaxWidth = _accountDataInfo.MaxWidth = 460;
         _account.HorizontalAlignment = _status.HorizontalAlignment = _registerInfo.HorizontalAlignment = _accountDataInfo.HorizontalAlignment = HorizontalAlignment.Left;
+        _registerSection = UiKit.VStack(8,
+            UiKit.Label("申请注册", 13, FontWeights.SemiBold),
+            _registerInfo,
+            _registerApply);
         _accountDataSection = UiKit.VStack(8,
             UiKit.Label("账号数据", 13, FontWeights.SemiBold),
             _accountDataInfo,
@@ -62,10 +67,7 @@ internal sealed class AccountForm : StackPanel
             _loginForm,
             _logout,
             _status,
-            UiKit.Label("申请注册", 13, FontWeights.SemiBold),
-            _registerInfo,
-            _registerApply,
-            // 账号数据区放在申请注册下方
+            _registerSection,
             _accountDataSection
         ]);
         IsVisibleChanged += (_, _) =>
@@ -97,6 +99,8 @@ internal sealed class AccountForm : StackPanel
         }
         _loginForm.Visibility = loggedIn ? Visibility.Collapsed : Visibility.Visible;
         _logout.Visibility = loggedIn ? Visibility.Visible : Visibility.Collapsed;
+        // 已登录不再展示申请注册
+        _registerSection.Visibility = loggedIn ? Visibility.Collapsed : Visibility.Visible;
         // 账号数据只在已登录时展示
         _accountDataSection.Visibility = loggedIn ? Visibility.Visible : Visibility.Collapsed;
         _login.IsEnabled = !_busy;
