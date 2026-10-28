@@ -62,6 +62,15 @@ internal sealed class LayeredPopup : IDisposable
         UpdateLayeredWindowAlpha(_hwnd, 0, 0, 0, 0, 0, 0, ref blend, ULW_ALPHA);
     }
 
+    // 只挪位置，不重传位图（模式提示跟光标用）
+    public void MoveTo(int x, int y)
+    {
+        if (!Visible || _hdcMem == 0) return;
+        _x = x;
+        _y = y;
+        Apply();
+    }
+
     public void Hide()
     {
         if (!Visible) return;

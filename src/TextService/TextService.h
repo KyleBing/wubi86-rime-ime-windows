@@ -72,8 +72,8 @@ public:
 
     // 在编辑会话里把输出写进文档
     void ApplyOutput(TfEditCookie ec, ITfContext* context, const ImeOutput& output);
-    // 在编辑会话里取编码区（或光标）的屏幕矩形，并回报给服务进程
-    void ReportCaret(TfEditCookie ec, ITfContext* context, const char* reason);
+    // 在编辑会话里取编码区（或光标）的屏幕矩形，并回报给服务进程；成功回报返回 true
+    bool ReportCaret(TfEditCookie ec, ITfContext* context, const char* reason);
 
     bool AsciiMode() const { return asciiMode_; }
     // 语言栏点击：切换中英
@@ -100,6 +100,10 @@ private:
     // 请求编辑会话写入输出；sync 为 true 时尽量同步（按键处理里用）
     void RequestApply(ITfContext* context, const ImeOutput& output, bool sync, const char* caretReason);
     void RequestCaret(ITfContext* context, const char* reason);
+    // 聚焦后插入点常滞后：延迟重试，坐标稳定后再以 focus 回报（对齐 macOS）
+    void ScheduleFocusCaret();
+    void CancelFocusCaret();
+    void OnFocusCaretRetry();
     ITfContext* FocusedContext(ComPtr<ITfContext>& holder);
 
     // 通用请求：附带客户端号与消息窗口；应答中的 ascii 同步到语言栏
@@ -116,6 +120,13 @@ private:
     void DestroyMessageWindow();
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     void OnServerUpdate();
+
+    static constexpr UINT_PTR kFocusCaretTimerId = 1;
+    static constexpr UINT kFocusCaretIntervalMs = 40;
+    // 约 480ms：点击后插入点常先停在旧位置「假稳定」，太早采信会错位
+    static constexpr int kFocusCaretMaxAttempts = 12;
+    // 至少等约 200ms 再弹提示
+    static constexpr int kFocusCaretMinBeforeShow = 5;
 
     // 编码区操作（都在读写编辑会话里调用）
     bool StartComposition(TfEditCookie ec, ITfContext* context);
@@ -148,6 +159,11 @@ private:
     // 文档里当前编码区的文字，用来判断服务端输出是否需要改文档
     std::wstring currentPreedit_;
     KeyResult pendingKey_;
+    // 聚焦光标重试：等插入点稳定后再弹中英提示
+    int focusCaretAttemptsLeft_ = 0;
+    bool focusCaretHaveSample_ = false;
+    RECT focusCaretPrev_{};
+    bool focusCaretReported_ = false;
 };
 
 }  // namespace Meifeng

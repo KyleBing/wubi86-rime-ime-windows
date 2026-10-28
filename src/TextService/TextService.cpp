@@ -3,6 +3,7 @@
 #include "DisplayAttribute.h"
 #include "LangBarButton.h"
 
+#include <cstring>
 #include <shellapi.h>
 
 namespace Meifeng {
@@ -145,6 +146,35 @@ void ToPhysical(HWND hwnd, RECT& rc) {
     POINT tl = {rc.left, rc.top};
     POINT br = {rc.right, rc.bottom};
     if (fn(hwnd, &tl) && fn(hwnd, &br)) rc = {tl.x, tl.y, br.x, br.y};
+}
+
+// 整段 / 整页的 TextExt 不能当光标；过宽时收到左缘作插入点
+bool NormalizeCaretRect(RECT& rc, bool composition) {
+    const int w = rc.right - rc.left;
+    const int h = rc.bottom - rc.top;
+    if (h <= 0 && w <= 0) return false;
+    if (h > 160) return false;
+    if (!composition && w > 120) rc.right = rc.left + 1;
+    if (h <= 0) rc.bottom = rc.top + 16;
+    if (rc.right <= rc.left) rc.right = rc.left + 1;
+    return true;
+}
+
+bool ReadSystemCaret(RECT& rc) {
+    GUITHREADINFO info = {sizeof(info)};
+    if (!GetGUIThreadInfo(GetCurrentThreadId(), &info) || !info.hwndCaret) return false;
+    POINT tl = {info.rcCaret.left, info.rcCaret.top};
+    POINT br = {info.rcCaret.right, info.rcCaret.bottom};
+    ClientToScreen(info.hwndCaret, &tl);
+    ClientToScreen(info.hwndCaret, &br);
+    rc = {tl.x, tl.y, br.x, br.y};
+    ToPhysical(info.hwndCaret, rc);
+    return NormalizeCaretRect(rc, false);
+}
+
+bool CaretNearlySame(const RECT& a, const RECT& b) {
+    return abs(a.left - b.left) <= 4 && abs(a.top - b.top) <= 4 &&
+           abs(a.bottom - b.bottom) <= 4;
 }
 
 }  // namespace
@@ -482,10 +512,57 @@ void TextService::RequestApply(ITfContext* context, const ImeOutput& output, boo
 
 void TextService::RequestCaret(ITfContext* context, const char* reason) {
     if (!context) return;
+    // 聚焦当帧客户端经常还没把插入点算出来，走延迟重试
+    if (reason && strcmp(reason, "focus") == 0) {
+        ScheduleFocusCaret();
+        return;
+    }
     auto* session = new CaretSession(this, context, reason);
     HRESULT hr = E_FAIL;
     context->RequestEditSession(clientId_, session, TF_ES_READ | TF_ES_ASYNCDONTCARE, &hr);
     session->Release();
+}
+
+void TextService::ScheduleFocusCaret() {
+    if (!window_) return;
+    CancelFocusCaret();
+    focusCaretAttemptsLeft_ = kFocusCaretMaxAttempts;
+    focusCaretHaveSample_ = false;
+    focusCaretReported_ = false;
+    focusCaretPrev_ = {};
+    SetTimer(window_, kFocusCaretTimerId, kFocusCaretIntervalMs, nullptr);
+}
+
+void TextService::CancelFocusCaret() {
+    if (window_) KillTimer(window_, kFocusCaretTimerId);
+    focusCaretAttemptsLeft_ = 0;
+}
+
+void TextService::OnFocusCaretRetry() {
+    if (!focused_) {
+        CancelFocusCaret();
+        return;
+    }
+    if (focusCaretAttemptsLeft_ <= 0) {
+        CancelFocusCaret();
+        return;
+    }
+    --focusCaretAttemptsLeft_;
+
+    ComPtr<ITfContext> holder;
+    ITfContext* context = FocusedContext(holder);
+    if (!context) {
+        CancelFocusCaret();
+        return;
+    }
+
+    // 同步取光标：先更新坐标，够延迟且稳定后再弹提示；弹完继续跟一段，纠正假稳定
+    auto* session = new CaretSession(this, context, "focus-probe");
+    HRESULT hr = E_FAIL;
+    context->RequestEditSession(clientId_, session, TF_ES_READ | TF_ES_SYNC, &hr);
+    session->Release();
+
+    if (focusCaretAttemptsLeft_ <= 0) CancelFocusCaret();
 }
 
 void TextService::ApplyOutput(TfEditCookie ec, ITfContext* context, const ImeOutput& output) {
@@ -612,53 +689,73 @@ void TextService::ClearDisplayAttribute(TfEditCookie ec, ITfContext* context, IT
 }
 
 // 取编码区（没有编码时取光标）的屏幕矩形，回报给服务进程定位候选窗 / 模式提示
-void TextService::ReportCaret(TfEditCookie ec, ITfContext* context, const char* reason) {
-    ComPtr<ITfRange> range;
-    if (composition_) {
-        composition_->GetRange(range.Put());
-    } else {
-        TF_SELECTION sel = {};
-        ULONG fetched = 0;
-        if (SUCCEEDED(context->GetSelection(ec, TF_DEFAULT_SELECTION, 1, &sel, &fetched)) && fetched == 1) {
-            range = sel.range;
-            sel.range->Release();
-        }
-    }
+bool TextService::ReportCaret(TfEditCookie ec, ITfContext* context, const char* reason) {
+    const bool composition = static_cast<bool>(composition_);
+    const bool probe = reason && strcmp(reason, "focus-probe") == 0;
     RECT rc = {};
     bool ok = false;
-    ComPtr<ITfContextView> view;
-    if (range && SUCCEEDED(context->GetActiveView(view.Put())) && view) {
-        BOOL clipped = FALSE;
-        if (SUCCEEDED(view->GetTextExt(ec, range.Get(), &rc, &clipped)) && (rc.bottom > rc.top || rc.right > rc.left)) {
-            HWND hwnd = nullptr;
-            view->GetWnd(&hwnd);
-            ToPhysical(hwnd, rc);
-            ok = true;
-        }
-    }
+
+    // 聚焦探针优先用系统插入符：点击后它通常比选区 TextExt 更早跟到新位置
+    if (probe) ok = ReadSystemCaret(rc);
+
     if (!ok) {
-        // 退而求其次：系统插入符位置
-        GUITHREADINFO info = {sizeof(info)};
-        if (GetGUIThreadInfo(GetCurrentThreadId(), &info) && info.hwndCaret) {
-            POINT tl = {info.rcCaret.left, info.rcCaret.top};
-            POINT br = {info.rcCaret.right, info.rcCaret.bottom};
-            ClientToScreen(info.hwndCaret, &tl);
-            ClientToScreen(info.hwndCaret, &br);
-            rc = {tl.x, tl.y, br.x, br.y};
-            ToPhysical(info.hwndCaret, rc);
-            ok = true;
+        ComPtr<ITfRange> range;
+        if (composition) {
+            composition_->GetRange(range.Put());
+        } else {
+            TF_SELECTION sel = {};
+            ULONG fetched = 0;
+            if (SUCCEEDED(context->GetSelection(ec, TF_DEFAULT_SELECTION, 1, &sel, &fetched)) && fetched == 1) {
+                // 必须 Clone 后再 Collapse，不能动文档里的真实选区
+                ComPtr<ITfRange> selRange;
+                selRange = sel.range;
+                sel.range->Release();
+                if (selRange) {
+                    selRange->Clone(range.Put());
+                    if (range) range->Collapse(ec, TF_ANCHOR_END);
+                }
+            }
+        }
+        ComPtr<ITfContextView> view;
+        if (range && SUCCEEDED(context->GetActiveView(view.Put())) && view) {
+            BOOL clipped = FALSE;
+            if (SUCCEEDED(view->GetTextExt(ec, range.Get(), &rc, &clipped))) {
+                HWND hwnd = nullptr;
+                view->GetWnd(&hwnd);
+                ToPhysical(hwnd, rc);
+                ok = NormalizeCaretRect(rc, composition);
+            }
         }
     }
-    if (!ok) return;
+    if (!ok) ok = ReadSystemCaret(rc);
+    if (!ok) return false;
+
+    const char* sendReason = reason ? reason : "update";
+    if (probe) {
+        // 每次都先刷新坐标，让已显示的胶囊能跟到正确位置
+        sendReason = "update";
+        const int used = kFocusCaretMaxAttempts - focusCaretAttemptsLeft_;
+        const bool pastMin = used >= kFocusCaretMinBeforeShow;
+        const bool stable = focusCaretHaveSample_ && CaretNearlySame(rc, focusCaretPrev_);
+        // 够延迟且稳定，或用尽重试：弹一次中英提示
+        if (!focusCaretReported_ && ((pastMin && stable) || focusCaretAttemptsLeft_ <= 0)) {
+            sendReason = "focus";
+            focusCaretReported_ = true;
+        }
+        focusCaretPrev_ = rc;
+        focusCaretHaveSample_ = true;
+    }
+
     Protocol::Fields resp;
     Request({{"cmd", "caret"},
-             {"reason", reason ? reason : "update"},
+             {"reason", sendReason},
              {"caps", (CurrentMods() & 16) ? "1" : "0"},
              {"cx", std::to_string(rc.left)},
              {"cy", std::to_string(rc.top)},
              {"cw", std::to_string(rc.right - rc.left)},
              {"cht", std::to_string(rc.bottom - rc.top)}},
             resp, 300);
+    return true;
 }
 
 STDMETHODIMP TextService::OnCompositionTerminated(TfEditCookie ec, ITfComposition* composition) {
@@ -698,6 +795,7 @@ void TextService::FocusDocument(ITfDocumentMgr* doc) {
 void TextService::BlurDocument() {
     if (!focused_) return;
     focused_ = false;
+    CancelFocusCaret();
     Protocol::Fields resp;
     if (!Request({{"cmd", "focus"}, {"on", "0"}}, resp, 500)) return;
     ImeOutput output = ParseOutput(resp);
@@ -728,6 +826,7 @@ bool TextService::CreateMessageWindow() {
 
 void TextService::DestroyMessageWindow() {
     if (window_) {
+        KillTimer(window_, kFocusCaretTimerId);
         SetWindowLongPtrW(window_, GWLP_USERDATA, 0);
         DestroyWindow(window_);
         window_ = nullptr;
@@ -735,9 +834,13 @@ void TextService::DestroyMessageWindow() {
 }
 
 LRESULT CALLBACK TextService::WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    auto* self = reinterpret_cast<TextService*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     if (msg == WM_MEIFENG_UPDATE) {
-        auto* self = reinterpret_cast<TextService*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
         if (self) self->OnServerUpdate();
+        return 0;
+    }
+    if (msg == WM_TIMER && wParam == kFocusCaretTimerId) {
+        if (self) self->OnFocusCaretRetry();
         return 0;
     }
     return DefWindowProcW(hwnd, msg, wParam, lParam);

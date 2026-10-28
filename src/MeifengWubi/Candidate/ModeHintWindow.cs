@@ -18,11 +18,16 @@ internal sealed class ModeHintWindow : IDisposable
     private readonly LayeredPopup _popup = new(clickThrough: true);
     private readonly DispatcherTimer _timer = new(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(16) };
     private DateTime _shownAt;
+    private double _outsetPx;
+    private int _bitmapW;
+    private int _bitmapH;
 
     public ModeHintWindow()
     {
         _timer.Tick += (_, _) => Animate();
     }
+
+    public bool Visible => _popup.Visible;
 
     // 胶囊文字：大写锁定优先于中英，锁定时一直显示「大写」
     private static string Label(bool asciiMode, bool capsLock) =>
@@ -37,22 +42,25 @@ internal sealed class ModeHintWindow : IDisposable
         var root = BuildChrome(Label(asciiMode, capsLock), colors, out var size);
         var bitmap = CandidateBarRenderer.Rasterize(root, size, scale);
 
-        var outset = ShadowOutset * scale;
-        var w = bitmap.PixelWidth;
-        var h = bitmap.PixelHeight;
-        var gapY = skin.OffsetTop * scale;
-        var gapX = skin.OffsetLeft * scale;
-        var x = caret.Left + gapX - outset;
-        var y = caret.Bottom + gapY - outset;
-        if (y + h - outset > work.Bottom) y = Math.Max(caret.Top - gapY - (h - outset), work.Top - outset);
-        x = Math.Min(Math.Max(x, work.Left - outset), work.Right - w + outset);
-        y = Math.Max(y, work.Top - outset);
+        _outsetPx = ShadowOutset * scale;
+        _bitmapW = bitmap.PixelWidth;
+        _bitmapH = bitmap.PixelHeight;
+        var (x, y) = Place(caret, work, scale, skin);
 
         _popup.SetAlpha(0);
-        _popup.Present(bitmap, (int)Math.Round(x), (int)Math.Round(y));
+        _popup.Present(bitmap, x, y);
         _popup.SetAlpha(0);
         _shownAt = DateTime.UtcNow;
         _timer.Start();
+    }
+
+    // 聚焦后插入点还会跳：已显示时跟着新光标挪，不重开动效
+    public void FollowCaret(Native.RECT caret)
+    {
+        if (!_popup.Visible || _bitmapW <= 0) return;
+        var (work, scale) = Native.MonitorAt(caret.Left, caret.Bottom);
+        var (x, y) = Place(caret, work, scale, AppearancePrefs.Skin);
+        _popup.MoveTo(x, y);
     }
 
     // 开始打字、失焦或弹出候选时立刻收起
@@ -66,6 +74,19 @@ internal sealed class ModeHintWindow : IDisposable
     {
         _timer.Stop();
         _popup.Dispose();
+    }
+
+    private (int X, int Y) Place(Native.RECT caret, Native.RECT work, double scale, CandidateSkin skin)
+    {
+        var gapY = skin.OffsetTop * scale;
+        var gapX = skin.OffsetLeft * scale;
+        var x = caret.Left + gapX - _outsetPx;
+        var y = caret.Bottom + gapY - _outsetPx;
+        if (y + _bitmapH - _outsetPx > work.Bottom)
+            y = Math.Max(caret.Top - gapY - (_bitmapH - _outsetPx), work.Top - _outsetPx);
+        x = Math.Min(Math.Max(x, work.Left - _outsetPx), work.Right - _bitmapW + _outsetPx);
+        y = Math.Max(y, work.Top - _outsetPx);
+        return ((int)Math.Round(x), (int)Math.Round(y));
     }
 
     private void Animate()

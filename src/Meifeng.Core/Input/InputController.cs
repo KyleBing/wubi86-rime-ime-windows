@@ -339,6 +339,8 @@ public sealed class InputController
         var caps = key.Has(KeyMods.CapsLock);
         if (caps == _capsLock) return;
         _capsLock = caps;
+        // 先要光标再显示，避免仍用聚焦时错位的旧坐标（与 Shift 归位同一套路）
+        _out.WantCaret = true;
         _ui.ShowModeHint(_asciiMode, _capsLock);
     }
 
